@@ -58,4 +58,18 @@ export const mcpServerService = {
     }
     return response.json();
   },
+
+  // Connect to MCP server
+  connectToServer: async (id) => {
+    const response = await fetch(`${API_BASE_URL}/servers/${id}/connect`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!response.ok) {
+      throw new Error('Failed to connect to server');
+    }
+    return response.json();
+  },
 };

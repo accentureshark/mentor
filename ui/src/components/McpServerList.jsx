@@ -74,6 +74,29 @@ export const McpServerList = ({ onServerSelect, selectedServerId }) => {
     });
   };
 
+  const handleConnectServer = async (server) => {
+    setLoading(true);
+    try {
+      await mcpServerService.connectToServer(server.id);
+      toast.current?.show({
+        severity: 'success',
+        summary: 'Success',
+        detail: `Connection attempt completed for ${server.name}`,
+        life: 3000,
+      });
+      loadServers(); // Refresh to show updated status
+    } catch (error) {
+      toast.current?.show({
+        severity: 'error',
+        summary: 'Error',
+        detail: `Failed to connect to ${server.name}`,
+        life: 3000,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const formatLastConnected = (timestamp) => {
     if (!timestamp) return 'Never';
     const diff = Date.now() - timestamp;
@@ -119,15 +142,27 @@ export const McpServerList = ({ onServerSelect, selectedServerId }) => {
                   className="mcp-server-status"
                 />
               </div>
-              <Button
-                icon="pi pi-times"
-                className="p-button-text p-button-danger p-button-sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleRemoveServer(server);
-                }}
-                tooltip="Remove server"
-              />
+              <div className="mcp-server-actions">
+                <Button
+                  icon="pi pi-link"
+                  className="p-button-text p-button-success p-button-sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleConnectServer(server);
+                  }}
+                  tooltip="Connect to server"
+                  disabled={loading || server.status === 'CONNECTED'}
+                />
+                <Button
+                  icon="pi pi-times"
+                  className="p-button-text p-button-danger p-button-sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRemoveServer(server);
+                  }}
+                  tooltip="Remove server"
+                />
+              </div>
             </div>
             
             <p className="mcp-server-description">{server.description}</p>

@@ -1,0 +1,14 @@
+org/shark/mentor/mcp/model/McpServer$McpServerBuilder.class
+org/shark/mentor/mcp/config/McpProperties$ServerConfig.class
+org/shark/mentor/mcp/McpClientApplication.class
+org/shark/mentor/mcp/service/McpServerService.class
+org/shark/mentor/mcp/controller/McpServerController.class
+org/shark/mentor/mcp/model/ChatMessage$ChatMessageBuilder.class
+org/shark/mentor/mcp/config/WebConfig.class
+org/shark/mentor/mcp/model/ChatMessage.class
+org/shark/mentor/mcp/config/McpProperties.class
+org/shark/mentor/mcp/service/ChatService.class
+org/shark/mentor/mcp/model/McpRequest$McpRequestBuilder.class
+org/shark/mentor/mcp/model/McpRequest.class
+org/shark/mentor/mcp/model/McpServer.class
+org/shark/mentor/mcp/controller/ChatController.class

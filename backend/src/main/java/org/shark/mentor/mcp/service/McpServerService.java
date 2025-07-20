@@ -127,4 +127,49 @@ public class McpServerService {
         }
         return server;
     }
+    
+    public McpServer connectToServer(String id) {
+        McpServer server = servers.get(id);
+        if (server == null) {
+            log.error("Server with id {} not found", id);
+            return null;
+        }
+        
+        log.info("Attempting to connect to server: {} at {}", server.getName(), server.getUrl());
+        
+        // For melian-local server, try to connect to localhost:3000
+        if ("melian-local".equals(id)) {
+            try {
+                // Simple HTTP check to see if the server is running
+                java.net.URL url = new java.net.URL("http://" + properties.getServer().getHost() + ":" + properties.getServer().getPort());
+                java.net.HttpURLConnection connection = (java.net.HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(5000); // 5 seconds timeout
+                connection.setReadTimeout(5000);
+                
+                int responseCode = connection.getResponseCode();
+                if (responseCode >= 200 && responseCode < 400) {
+                    server.setStatus("CONNECTED");
+                    server.setLastConnected(System.currentTimeMillis());
+                    log.info("Successfully connected to melian server at {}:{}", 
+                            properties.getServer().getHost(), properties.getServer().getPort());
+                } else {
+                    server.setStatus("ERROR");
+                    log.warn("Melian server responded with status code: {}", responseCode);
+                }
+                connection.disconnect();
+            } catch (java.io.IOException e) {
+                server.setStatus("ERROR");
+                log.error("Failed to connect to melian server: {}", e.getMessage());
+                throw new RuntimeException("Connection failed: " + e.getMessage());
+            }
+        } else {
+            // For other servers, we'll simulate connection for now
+            // In a real implementation, you would implement stdio protocol handling
+            log.info("Connection not implemented for stdio protocol servers yet. Setting as DISCONNECTED.");
+            server.setStatus("DISCONNECTED");
+        }
+        
+        return server;
+    }
 }
