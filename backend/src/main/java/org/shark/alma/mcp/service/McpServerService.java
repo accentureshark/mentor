@@ -1,5 +1,6 @@
 package org.shark.alma.mcp.service;
 
+import org.shark.alma.mcp.config.McpProperties;
 import org.shark.alma.mcp.model.McpServer;
 import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
@@ -13,14 +14,32 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 @Slf4j
 public class McpServerService {
-    
+
     private final Map<String, McpServer> servers = new ConcurrentHashMap<>();
-    
-    public McpServerService() {
-        // Initialize with some sample MCP servers
-        initializeSampleServers();
+    private final McpProperties properties;
+
+    public McpServerService(McpProperties properties) {
+        this.properties = properties;
+        loadServersFromConfig();
     }
-    
+
+    private void loadServersFromConfig() {
+        List<McpServer> configured = properties.getServers();
+        if (configured == null || configured.isEmpty()) {
+            initializeSampleServers();
+            return;
+        }
+        configured.forEach(server -> {
+            if (server.getStatus() == null) {
+                server.setStatus("DISCONNECTED");
+            }
+            if (server.getLastConnected() == null) {
+                server.setLastConnected(System.currentTimeMillis());
+            }
+            addServer(server);
+        });
+    }
+
     private void initializeSampleServers() {
         // Local Melian MCP Server
         addServer(McpServer.builder()
