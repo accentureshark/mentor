@@ -66,4 +66,21 @@ public class McpServerController {
             return ResponseEntity.notFound().build();
         }
     }
+    
+    @PostMapping("/{id}/connect")
+    public ResponseEntity<McpServer> connectToServer(@PathVariable String id) {
+        log.info("Attempting to connect to MCP server: {}", id);
+        try {
+            McpServer connectedServer = mcpServerService.connectToServer(id);
+            if (connectedServer != null) {
+                return ResponseEntity.ok(connectedServer);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            log.error("Failed to connect to server {}: {}", id, e.getMessage());
+            McpServer errorServer = mcpServerService.updateServerStatus(id, "ERROR");
+            return ResponseEntity.status(500).body(errorServer);
+        }
+    }
 }
