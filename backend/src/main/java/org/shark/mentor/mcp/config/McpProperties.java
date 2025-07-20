@@ -12,7 +12,7 @@ import lombok.Data;
 /**
  * Configuration properties for MCP servers.
  */
-@Configuration
+
 @ConfigurationProperties(prefix = "mcp")
 @Data
 public class McpProperties {
