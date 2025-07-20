@@ -1,4 +1,4 @@
-package org.shark.alma.mcp.config;
+package org.shark.mentor.mcp.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

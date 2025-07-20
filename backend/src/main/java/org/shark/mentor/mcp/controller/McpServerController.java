@@ -1,7 +1,7 @@
-package org.shark.alma.mcp.controller;
+package org.shark.mentor.mcp.controller;
 
-import org.shark.alma.mcp.model.McpServer;
-import org.shark.alma.mcp.service.McpServerService;
+import org.shark.mentor.mcp.model.McpServer;
+import org.shark.mentor.mcp.service.McpServerService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import lombok.RequiredArgsConstructor;

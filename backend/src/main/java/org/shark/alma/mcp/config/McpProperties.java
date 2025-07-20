@@ -1,9 +1,9 @@
-package org.shark.alma.mcp.config;
+package org.shark.mentor.mcp.config;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import org.shark.alma.mcp.model.McpServer;
+import org.shark.mentor.mcp.model.McpServer;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 

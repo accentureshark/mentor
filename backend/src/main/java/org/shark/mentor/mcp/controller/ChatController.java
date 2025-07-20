@@ -1,8 +1,8 @@
-package org.shark.alma.mcp.controller;
+package org.shark.mentor.mcp.controller;
 
-import org.shark.alma.mcp.model.ChatMessage;
-import org.shark.alma.mcp.model.McpRequest;
-import org.shark.alma.mcp.service.ChatService;
+import org.shark.mentor.mcp.model.ChatMessage;
+import org.shark.mentor.mcp.model.McpRequest;
+import org.shark.mentor.mcp.service.ChatService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import lombok.RequiredArgsConstructor;

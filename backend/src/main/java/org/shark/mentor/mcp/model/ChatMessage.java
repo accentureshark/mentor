@@ -1,4 +1,4 @@
-package org.shark.alma.mcp.model;
+package org.shark.mentor.mcp.model;
 
 import lombok.Data;
 import lombok.Builder;

@@ -1,7 +1,7 @@
-package org.shark.alma.mcp.service;
+package org.shark.mentor.mcp.service;
 
-import org.shark.alma.mcp.config.McpProperties;
-import org.shark.alma.mcp.model.McpServer;
+import org.shark.mentor.mcp.config.McpProperties;
+import org.shark.mentor.mcp.model.McpServer;
 import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
 

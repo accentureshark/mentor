@@ -1,7 +1,7 @@
-package org.shark.alma.mcp.service;
+package org.shark.mentor.mcp.service;
 
-import org.shark.alma.mcp.model.ChatMessage;
-import org.shark.alma.mcp.model.McpRequest;
+import org.shark.mentor.mcp.model.ChatMessage;
+import org.shark.mentor.mcp.model.McpRequest;
 import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
 
