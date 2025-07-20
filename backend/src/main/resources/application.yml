@@ -1,0 +1,24 @@
+server:
+  port: 8083
+mcp:
+  server:
+    port: 3000
+    host: localhost
+
+spring:
+  application:
+    name: mcp-client-backend
+  mvc:
+    cors:
+      allowed-origins: "*"
+      allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+      allowed-headers: "*"
+logging:
+  level:
+    org.shark.alma.mcp: INFO
+    org.springframework.web: DEBUG
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
