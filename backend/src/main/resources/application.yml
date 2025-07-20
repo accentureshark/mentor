@@ -4,6 +4,27 @@ mcp:
   server:
     port: 3000
     host: localhost
+  servers:
+    - id: melian-local
+      name: "Melian MCP Server (Local)"
+      description: "Local MELIAN - M\xF3dulo de Embedding y L\xF3gica Inteligente para Acceso Natural. Provides movie data from TMDB, SQL databases, and MongoDB."
+      url: "stdio://java -jar ../target/melian-*.jar"
+    - id: github-mcp
+      name: "GitHub MCP Server"
+      description: "Provides access to GitHub repositories, issues, and pull requests"
+      url: "stdio://npx @modelcontextprotocol/server-github"
+    - id: filesystem-mcp
+      name: "File System MCP Server"
+      description: "Provides secure access to local file system operations"
+      url: "stdio://npx @modelcontextprotocol/server-filesystem"
+    - id: brave-search-mcp
+      name: "Brave Search MCP Server"
+      description: "Provides web search capabilities through Brave Search API"
+      url: "stdio://npx @modelcontextprotocol/server-brave-search"
+    - id: sqlite-mcp
+      name: "SQLite MCP Server"
+      description: "Provides database query capabilities for SQLite databases"
+      url: "stdio://npx @modelcontextprotocol/server-sqlite"
 
 spring:
   application:
