@@ -1,0 +1,10 @@
+/home/runner/work/mentor/mentor/backend/src/main/java/org/shark/mentor/mcp/McpClientApplication.java
+/home/runner/work/mentor/mentor/backend/src/main/java/org/shark/mentor/mcp/config/McpProperties.java
+/home/runner/work/mentor/mentor/backend/src/main/java/org/shark/mentor/mcp/config/WebConfig.java
+/home/runner/work/mentor/mentor/backend/src/main/java/org/shark/mentor/mcp/controller/ChatController.java
+/home/runner/work/mentor/mentor/backend/src/main/java/org/shark/mentor/mcp/controller/McpServerController.java
+/home/runner/work/mentor/mentor/backend/src/main/java/org/shark/mentor/mcp/model/ChatMessage.java
+/home/runner/work/mentor/mentor/backend/src/main/java/org/shark/mentor/mcp/model/McpRequest.java
+/home/runner/work/mentor/mentor/backend/src/main/java/org/shark/mentor/mcp/model/McpServer.java
+/home/runner/work/mentor/mentor/backend/src/main/java/org/shark/mentor/mcp/service/ChatService.java
+/home/runner/work/mentor/mentor/backend/src/main/java/org/shark/mentor/mcp/service/McpServerService.java
