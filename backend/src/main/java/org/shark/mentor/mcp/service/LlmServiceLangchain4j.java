@@ -26,8 +26,9 @@ public class LlmServiceLangchain4j implements LlmService {
     }
 
     @Override
-    public String generate(String prompt, String context) {
-        String fullPrompt = prompt + "\nContexto:\n" + context;
-        return chatModel.generate(fullPrompt);
+    public String generate(String mcpAnswer, String context) {
+        String prompt = "Reformula la siguiente respuesta en lenguaje natural, sin agregar ni inferir información. Solo usa el contenido proporcionado:\n\n"
+                + mcpAnswer;
+        return chatModel.generate(prompt);
     }
 }
