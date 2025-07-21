@@ -3,6 +3,7 @@ package org.shark.mentor.mcp.service;
 import org.shark.mentor.mcp.model.ChatMessage;
 import org.shark.mentor.mcp.model.McpRequest;
 import org.shark.mentor.mcp.model.McpServer;
+import org.shark.mentor.mcp.service.LlmService;
 import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,11 +27,13 @@ public class ChatService {
 
     private final Map<String, List<ChatMessage>> conversations = new ConcurrentHashMap<>();
     private final McpServerService mcpServerService;
+    private final LlmService llmService;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public ChatService(McpServerService mcpServerService) {
+    public ChatService(McpServerService mcpServerService, LlmService llmService) {
         this.mcpServerService = mcpServerService;
+        this.llmService = llmService;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
@@ -68,8 +71,19 @@ public class ChatService {
 
         addMessageToConversation(conversationId, userMessage);
 
-        // Communicate with actual MCP server
-        ChatMessage assistantMessage = communicateWithMcpServer(request, server);
+        // Get additional context from the connected MCP server
+        ChatMessage contextMessage = communicateWithMcpServer(request, server);
+
+        // Generate the final response using the configured LLM
+        String llmOutput = llmService.generate(request.getMessage(), contextMessage.getContent());
+        ChatMessage assistantMessage = ChatMessage.builder()
+            .id(UUID.randomUUID().toString())
+            .role("ASSISTANT")
+            .content(llmOutput)
+            .timestamp(System.currentTimeMillis())
+            .serverId(request.getServerId())
+            .build();
+
         addMessageToConversation(conversationId, assistantMessage);
 
         return assistantMessage;
