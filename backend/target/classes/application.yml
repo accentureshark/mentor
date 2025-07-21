@@ -7,25 +7,24 @@ mcp:
   servers:
     - id: melian-local
       name: "Melian MCP Server (Local)"
-      description: "Local MELIAN - M\xF3dulo de Embedding y L\xF3gica Inteligente para Acceso Natural. Provides movie data from TMDB, SQL databases, and MongoDB."
-      url: "stdio://java -jar ../target/melian-*.jar"
+      description: "Local MELIAN - Módulo de Embedding y Lógica Inteligente para Acceso Natural"
+      url: "http://localhost:3000"
     - id: github-mcp
       name: "GitHub MCP Server"
       description: "Provides access to GitHub repositories, issues, and pull requests"
-      url: "stdio://npx @modelcontextprotocol/server-github"
+      url: "https://api.github-mcp.com/v1"  # Cambiar a protocolo remoto
     - id: filesystem-mcp
       name: "File System MCP Server"
       description: "Provides secure access to local file system operations"
-      url: "stdio://npx @modelcontextprotocol/server-filesystem"
+      url: "ws://localhost:3001/mcp"  # Cambiar a WebSocket
     - id: brave-search-mcp
       name: "Brave Search MCP Server"
       description: "Provides web search capabilities through Brave Search API"
-      url: "stdio://npx @modelcontextprotocol/server-brave-search"
+      url: "https://brave-search-mcp.herokuapp.com"  # Cambiar a HTTPS
     - id: sqlite-mcp
       name: "SQLite MCP Server"
       description: "Provides database query capabilities for SQLite databases"
-      url: "stdio://npx @modelcontextprotocol/server-sqlite"
-
+      url: "tcp://localhost:3002"  # Cambiar a TCP
 spring:
   application:
     name: mcp-client-backend

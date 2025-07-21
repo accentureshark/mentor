@@ -22,6 +22,10 @@
         <logback.version>1.4.14</logback.version>
         <testcontainers.version>1.19.7</testcontainers.version>
     </properties>
+    <packaging>pom</packaging>
+    <modules>
+        <module>backend</module>
+    </modules>
 
     <dependencyManagement>
         <dependencies>

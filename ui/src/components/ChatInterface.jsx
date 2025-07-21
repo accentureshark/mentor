@@ -45,7 +45,8 @@ export const ChatInterface = ({ selectedServer }) => {
   }, [messages]);
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim() || !selectedServer || loading) return;
+    if (!inputMessage.trim() || !selectedServer || selectedServer.status !== 'CONNECTED' || loading) return;
+
 
     const userMessage = {
       id: Date.now().toString(),
@@ -122,15 +123,24 @@ export const ChatInterface = ({ selectedServer }) => {
     );
   };
 
-  if (!selectedServer) {
+  if (!selectedServer || selectedServer.status !== 'CONNECTED') {
     return (
-      <div className="chat-interface-empty">
-        <div className="chat-empty-content">
-          <i className="pi pi-comments" style={{ fontSize: '3rem', color: '#ccc' }} />
-          <h3>Select an MCP Server</h3>
-          <p>Choose an MCP server from the left panel to start chatting</p>
+        <div className="chat-interface-empty">
+          <div className="chat-empty-content">
+            <i className="pi pi-comments" style={{ fontSize: '3rem', color: '#ccc' }} />
+            {!selectedServer ? (
+                <>
+                  <h3>Select an MCP Server</h3>
+                  <p>Choose an MCP server from the left panel to start chatting</p>
+                </>
+            ) : (
+                <>
+                  <h3>Server Not Connected</h3>
+                  <p>The selected server "{selectedServer.name}" is not connected. Please connect to the server first.</p>
+                </>
+            )}
+          </div>
         </div>
-      </div>
     );
   }
 
@@ -180,18 +190,18 @@ export const ChatInterface = ({ selectedServer }) => {
         <div className="chat-input">
           <div className="chat-input-container">
             <InputText
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder={`Message ${selectedServer.name}...`}
-              className="chat-input-field"
-              disabled={loading}
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder={selectedServer.status === 'CONNECTED' ? `Message ${selectedServer.name}...` : 'Server not connected'}
+                className="chat-input-field"
+                disabled={loading || selectedServer.status !== 'CONNECTED'}
             />
             <Button
-              icon="pi pi-send"
-              onClick={handleSendMessage}
-              disabled={!inputMessage.trim() || loading}
-              className="chat-send-button"
+                icon="pi pi-send"
+                onClick={handleSendMessage}
+                disabled={!inputMessage.trim() || loading || selectedServer.status !== 'CONNECTED'}
+                className="chat-send-button"
             />
           </div>
         </div>

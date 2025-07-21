@@ -19,4 +19,14 @@ public class McpServer {
     private String url;
     private String status; // CONNECTED, DISCONNECTED, ERROR
     private Long lastConnected;
+
+    // Constructor adicional para 5 parámetros
+    public McpServer(String id, String name, String description, String url, String status) {
+        this.id = id;
+        this.name = name;
+        this.description = description;
+        this.url = url;
+        this.status = status;
+        this.lastConnected = null;
+    }
 }

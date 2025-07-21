@@ -18,31 +18,31 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class McpServerController {
-    
+
     private final McpServerService mcpServerService;
-    
+
     @GetMapping
     public ResponseEntity<List<McpServer>> getAllServers() {
         log.info("Getting all MCP servers");
         List<McpServer> servers = mcpServerService.getAllServers();
         return ResponseEntity.ok(servers);
     }
-    
+
     @GetMapping("/{id}")
     public ResponseEntity<McpServer> getServer(@PathVariable String id) {
         log.info("Getting MCP server: {}", id);
         return mcpServerService.getServer(id)
-            .map(ResponseEntity::ok)
-            .orElse(ResponseEntity.notFound().build());
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
-    
+
     @PostMapping
     public ResponseEntity<McpServer> addServer(@RequestBody McpServer server) {
         log.info("Adding new MCP server: {}", server.getName());
         McpServer savedServer = mcpServerService.addServer(server);
         return ResponseEntity.ok(savedServer);
     }
-    
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> removeServer(@PathVariable String id) {
         log.info("Removing MCP server: {}", id);
@@ -53,10 +53,10 @@ public class McpServerController {
             return ResponseEntity.notFound().build();
         }
     }
-    
+
     @PutMapping("/{id}/status")
     public ResponseEntity<McpServer> updateServerStatus(
-            @PathVariable String id, 
+            @PathVariable String id,
             @RequestBody String status) {
         log.info("Updating server {} status to {}", id, status);
         McpServer updatedServer = mcpServerService.updateServerStatus(id, status);
@@ -66,21 +66,42 @@ public class McpServerController {
             return ResponseEntity.notFound().build();
         }
     }
-    
+
     @PostMapping("/{id}/connect")
     public ResponseEntity<McpServer> connectToServer(@PathVariable String id) {
         log.info("Attempting to connect to MCP server: {}", id);
         try {
             McpServer connectedServer = mcpServerService.connectToServer(id);
-            if (connectedServer != null) {
-                return ResponseEntity.ok(connectedServer);
-            } else {
-                return ResponseEntity.notFound().build();
-            }
+            return ResponseEntity.ok(connectedServer);
+        } catch (IllegalArgumentException e) {
+            log.error("Server not found: {}", id);
+            return ResponseEntity.notFound().build();
         } catch (Exception e) {
             log.error("Failed to connect to server {}: {}", id, e.getMessage());
-            McpServer errorServer = mcpServerService.updateServerStatus(id, "ERROR");
-            return ResponseEntity.status(500).body(errorServer);
+            return ResponseEntity.internalServerError().build();
         }
+    }
+
+    @PostMapping("/{id}/disconnect")
+    public ResponseEntity<McpServer> disconnectFromServer(@PathVariable String id) {
+        log.info("Attempting to disconnect from MCP server: {}", id);
+        try {
+            McpServer disconnectedServer = mcpServerService.disconnectFromServer(id);
+            return ResponseEntity.ok(disconnectedServer);
+        } catch (IllegalArgumentException e) {
+            log.error("Server not found: {}", id);
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            log.error("Failed to disconnect from server {}: {}", id, e.getMessage());
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/status")
+    public ResponseEntity<String> getConnectionStatus() {
+        long connectedCount = mcpServerService.getConnectedServersCount();
+        long totalCount = mcpServerService.getAllServers().size();
+
+        return ResponseEntity.ok(String.format("Connected: %d/%d servers", connectedCount, totalCount));
     }
 }

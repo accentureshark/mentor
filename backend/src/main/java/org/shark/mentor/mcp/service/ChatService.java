@@ -2,11 +2,19 @@ package org.shark.mentor.mcp.service;
 
 import org.shark.mentor.mcp.model.ChatMessage;
 import org.shark.mentor.mcp.model.McpRequest;
+import org.shark.mentor.mcp.model.McpServer;
 import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.*;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Service for handling chat messages and MCP communication
@@ -14,24 +22,39 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 @Slf4j
 public class ChatService {
-    
+
     private final Map<String, List<ChatMessage>> conversations = new ConcurrentHashMap<>();
     private final McpServerService mcpServerService;
-    
+    private final HttpClient httpClient;
+
     public ChatService(McpServerService mcpServerService) {
         this.mcpServerService = mcpServerService;
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
     }
-    
+
     public List<ChatMessage> getConversation(String conversationId) {
         return conversations.getOrDefault(conversationId, new ArrayList<>());
     }
-    
+
     public ChatMessage sendMessage(McpRequest request) {
         String conversationId = request.getConversationId();
         if (conversationId == null) {
             conversationId = "default";
         }
-        
+
+        // Verificar que el servidor existe y está conectado
+        Optional<McpServer> serverOpt = mcpServerService.getServer(request.getServerId());
+        if (serverOpt.isEmpty()) {
+            throw new IllegalArgumentException("Server not found: " + request.getServerId());
+        }
+
+        McpServer server = serverOpt.get();
+        if (!"CONNECTED".equals(server.getStatus())) {
+            throw new IllegalStateException("Server is not connected: " + server.getName());
+        }
+
         // Add user message
         ChatMessage userMessage = ChatMessage.builder()
             .id(UUID.randomUUID().toString())
@@ -40,71 +63,350 @@ public class ChatService {
             .timestamp(System.currentTimeMillis())
             .serverId(request.getServerId())
             .build();
-            
+
         addMessageToConversation(conversationId, userMessage);
-        
-        // Simulate MCP server response
-        ChatMessage assistantMessage = simulateMcpResponse(request);
+
+        // Communicate with actual MCP server
+        ChatMessage assistantMessage = communicateWithMcpServer(request, server);
         addMessageToConversation(conversationId, assistantMessage);
-        
+
         return assistantMessage;
     }
-    
+
     private void addMessageToConversation(String conversationId, ChatMessage message) {
         conversations.computeIfAbsent(conversationId, k -> new ArrayList<>()).add(message);
         log.info("Added message to conversation {}: {}", conversationId, message.getContent());
     }
-    
-    private ChatMessage simulateMcpResponse(McpRequest request) {
-        // This is a simple simulation of MCP server response
-        // In a real implementation, this would communicate with actual MCP servers
-        
-        String response = generateMockResponse(request);
-        
-        return ChatMessage.builder()
-            .id(UUID.randomUUID().toString())
-            .role("ASSISTANT")
-            .content(response)
-            .timestamp(System.currentTimeMillis())
-            .serverId(request.getServerId())
-            .build();
-    }
-    
-    private String generateMockResponse(McpRequest request) {
-        String serverId = request.getServerId();
-        String message = request.getMessage().toLowerCase();
-        
-        // Mock responses based on server type and message content
-        switch (serverId) {
-            case "local-file-server":
-                if (message.contains("list") || message.contains("ls")) {
-                    return "📁 Files found:\n- document.txt\n- image.jpg\n- data.json\n- script.py";
-                } else if (message.contains("read") || message.contains("cat")) {
-                    return "📄 File content:\nHello, this is a sample file content from the local file server.";
-                }
-                return "🔧 Local File Server: I can help you list files, read file contents, or manage your local filesystem.";
-                
-            case "web-search-server":
-                if (message.contains("search") || message.contains("find")) {
-                    return "🔍 Search results:\n1. Example result 1 - www.example1.com\n2. Example result 2 - www.example2.com\n3. Example result 3 - www.example3.com";
-                }
-                return "🌐 Web Search Server: I can help you search the web for information. Try asking me to search for something!";
-                
-            case "database-server":
-                if (message.contains("query") || message.contains("select")) {
-                    return "💾 Query results:\n| ID | Name | Status |\n|----|----- |--------|\n| 1  | Item A | Active |\n| 2  | Item B | Inactive |";
-                }
-                return "🗄️ Database Server: I can help you query databases and retrieve information. Try asking me to run a query!";
-                
-            default:
-                return "🤖 MCP Server Response: I received your message: \"" + request.getMessage() + "\". How can I help you?";
+
+    private ChatMessage communicateWithMcpServer(McpRequest request, McpServer server) {
+        log.info("Communicating with MCP server: {} for message: {}", server.getName(), request.getMessage());
+
+        try {
+            String response = switch (extractProtocol(server.getUrl())) {
+                case "stdio" -> handleStdioMessage(server, request.getMessage());
+                case "http", "https" -> handleHttpMessage(server, request.getMessage());
+                case "ws", "wss" -> handleWebSocketMessage(server, request.getMessage());
+                case "tcp" -> handleTcpMessage(server, request.getMessage());
+                default -> "Error: Unsupported protocol for server " + server.getName();
+            };
+
+            return ChatMessage.builder()
+                .id(UUID.randomUUID().toString())
+                .role("ASSISTANT")
+                .content(response)
+                .timestamp(System.currentTimeMillis())
+                .serverId(request.getServerId())
+                .build();
+
+        } catch (Exception e) {
+            log.error("Error communicating with MCP server {}: {}", server.getName(), e.getMessage());
+
+            return ChatMessage.builder()
+                .id(UUID.randomUUID().toString())
+                .role("ASSISTANT")
+                .content("Sorry, I encountered an error while communicating with " + server.getName() + ": " + e.getMessage())
+                .timestamp(System.currentTimeMillis())
+                .serverId(request.getServerId())
+                .build();
         }
     }
-    
+
+    private String extractProtocol(String url) {
+        if (url == null || !url.contains("://")) {
+            return "unknown";
+        }
+        return url.substring(0, url.indexOf("://"));
+    }
+
+    private String handleStdioMessage(McpServer server, String message) {
+        log.info("Handling stdio message for server: {}", server.getName());
+
+        try {
+            // Extraer el comando del URL stdio://
+            String command = server.getUrl().substring("stdio://".length());
+            String[] commandParts = command.split("\\s+");
+
+            // Crear el proceso
+            ProcessBuilder processBuilder = new ProcessBuilder(commandParts);
+            processBuilder.redirectErrorStream(true);
+
+            log.info("Starting process: {}", Arrays.toString(commandParts));
+            Process process = processBuilder.start();
+
+            // Enviar el mensaje al proceso via stdin
+            try (PrintWriter writer = new PrintWriter(process.getOutputStream(), true)) {
+                // Enviar mensaje en formato JSON para MCP
+                String mcpMessage = createMcpMessage(message);
+                writer.println(mcpMessage);
+                writer.flush();
+            }
+
+            // Leer la respuesta del proceso via stdout
+            StringBuilder response = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                long startTime = System.currentTimeMillis();
+                long timeout = 10000; // 10 segundos timeout
+
+                while ((line = reader.readLine()) != null) {
+                    response.append(line).append("\n");
+
+                    // Check timeout
+                    if (System.currentTimeMillis() - startTime > timeout) {
+                        log.warn("Timeout waiting for response from {}", server.getName());
+                        break;
+                    }
+
+                    // Si recibimos una respuesta completa (esto depende del protocolo MCP)
+                    if (isCompleteResponse(line)) {
+                        break;
+                    }
+                }
+            }
+
+            // Esperar a que el proceso termine o timeout
+            boolean finished = process.waitFor(5, TimeUnit.SECONDS);
+            if (!finished) {
+                log.warn("Process didn't finish within timeout, destroying it");
+                process.destroyForcibly();
+            }
+
+            String responseText = response.toString().trim();
+            if (responseText.isEmpty()) {
+                return "No response received from " + server.getName();
+            }
+
+            // Parsear respuesta MCP si es JSON
+            return parseMcpResponse(responseText, server.getName());
+
+        } catch (IOException e) {
+            log.error("IO error communicating with {}: {}", server.getName(), e.getMessage());
+            return "IO error communicating with " + server.getName() + ": " + e.getMessage();
+        } catch (InterruptedException e) {
+            log.error("Process interrupted for {}: {}", server.getName(), e.getMessage());
+            Thread.currentThread().interrupt();
+            return "Process interrupted for " + server.getName();
+        } catch (Exception e) {
+            log.error("Unexpected error communicating with {}: {}", server.getName(), e.getMessage());
+            return "Unexpected error communicating with " + server.getName() + ": " + e.getMessage();
+        }
+    }
+
+    private String handleHttpMessage(McpServer server, String message) {
+        log.info("Handling HTTP message for server: {}", server.getName());
+
+        try {
+            // Crear el request HTTP para enviar el mensaje
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("jsonrpc", "2.0");
+            requestBody.put("id", UUID.randomUUID().toString());
+            requestBody.put("method", "tools/call");
+
+            Map<String, Object> params = new HashMap<>();
+            params.put("name", "chat");
+
+            Map<String, Object> arguments = new HashMap<>();
+            arguments.put("message", message);
+            arguments.put("timestamp", System.currentTimeMillis());
+            params.put("arguments", arguments);
+
+            requestBody.put("params", params);
+
+            String jsonBody = convertToJson(requestBody);
+            log.debug("Sending HTTP request to {}: {}", server.getUrl(), jsonBody);
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(server.getUrl() + "/mcp"))
+                    .timeout(Duration.ofSeconds(30))
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request,
+                    HttpResponse.BodyHandlers.ofString());
+
+            log.debug("HTTP response from {}: Status={}, Body={}",
+                    server.getName(), response.statusCode(), response.body());
+
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                String responseBody = response.body();
+                log.info("HTTP response from {}: {}", server.getName(), responseBody);
+
+                // Parsear la respuesta JSON MCP
+                return parseMcpResponse(responseBody, server.getName());
+
+            } else {
+                String errorMsg = "Error: HTTP " + response.statusCode() + " from " + server.getName();
+                if (response.body() != null && !response.body().isEmpty()) {
+                    errorMsg += " - " + response.body();
+                }
+                return errorMsg;
+            }
+
+        } catch (IOException e) {
+            log.error("IO error communicating with {}: {}", server.getName(), e.getMessage());
+            return "Connection error with " + server.getName() + ": " + e.getMessage();
+        } catch (InterruptedException e) {
+            log.error("Request interrupted for {}: {}", server.getName(), e.getMessage());
+            Thread.currentThread().interrupt();
+            return "Request timeout for " + server.getName();
+        } catch (Exception e) {
+            log.error("Unexpected error with {}: {}", server.getName(), e.getMessage());
+            return "Error communicating with " + server.getName() + ": " + e.getMessage();
+        }
+    }
+
+    private String createMcpMessage(String userMessage) {
+        // Crear mensaje en formato MCP JSON-RPC
+        try {
+            Map<String, Object> mcpRequest = new HashMap<>();
+            mcpRequest.put("jsonrpc", "2.0");
+            mcpRequest.put("id", UUID.randomUUID().toString());
+            mcpRequest.put("method", "tools/call");
+
+            Map<String, Object> params = new HashMap<>();
+            params.put("name", "chat");
+
+            Map<String, Object> arguments = new HashMap<>();
+            arguments.put("message", userMessage);
+            params.put("arguments", arguments);
+
+            mcpRequest.put("params", params);
+
+            // Convertir a JSON
+            return convertToJson(mcpRequest);
+
+        } catch (Exception e) {
+            log.warn("Failed to create MCP JSON message, sending plain text: {}", e.getMessage());
+            return userMessage;
+        }
+    }
+
+    private String convertToJson(Map<String, Object> map) {
+        // Implementación simple de JSON - en producción usar ObjectMapper
+        StringBuilder json = new StringBuilder("{");
+        boolean first = true;
+
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            if (!first) json.append(",");
+            json.append("\"").append(entry.getKey()).append("\":");
+
+            Object value = entry.getValue();
+            if (value instanceof String) {
+                json.append("\"").append(escapeJson((String) value)).append("\"");
+            } else if (value instanceof Map) {
+                json.append(convertToJson((Map<String, Object>) value));
+            } else if (value instanceof Number) {
+                json.append(value);
+            } else {
+                json.append("\"").append(value).append("\"");
+            }
+            first = false;
+        }
+        json.append("}");
+        return json.toString();
+    }
+
+    private String escapeJson(String str) {
+        return str.replace("\"", "\\\"")
+                  .replace("\n", "\\n")
+                  .replace("\r", "\\r")
+                  .replace("\t", "\\t")
+                  .replace("\\", "\\\\");
+    }
+
+    private boolean isCompleteResponse(String line) {
+        // Verificar si la línea indica una respuesta completa de MCP
+        return line.contains("\"result\"") || line.contains("\"error\"") ||
+               (line.trim().endsWith("}") && line.contains("\"jsonrpc\""));
+    }
+
+    private String parseMcpResponse(String responseText, String serverName) {
+        try {
+            log.debug("Parsing MCP response from {}: {}", serverName, responseText);
+
+            // Intentar parsear como JSON MCP
+            if (responseText.contains("\"result\"")) {
+                // Extraer el resultado del JSON (implementación simple)
+                int resultStart = responseText.indexOf("\"result\":");
+                if (resultStart != -1) {
+                    String resultPart = responseText.substring(resultStart + 9);
+
+                    // Buscar el contenido del mensaje en diferentes formatos posibles
+                    if (resultPart.contains("\"content\"")) {
+                        int contentStart = resultPart.indexOf("\"content\":\"") + 11;
+                        int contentEnd = resultPart.indexOf("\"", contentStart);
+                        if (contentEnd != -1) {
+                            String content = resultPart.substring(contentStart, contentEnd);
+                            return unescapeJson(content);
+                        }
+                    }
+
+                    // Buscar respuesta directa
+                    if (resultPart.contains("\"response\"")) {
+                        int responseStart = resultPart.indexOf("\"response\":\"") + 12;
+                        int responseEnd = resultPart.indexOf("\"", responseStart);
+                        if (responseEnd != -1) {
+                            String content = resultPart.substring(responseStart, responseEnd);
+                            return unescapeJson(content);
+                        }
+                    }
+
+                    // Si es un string directo como resultado
+                    if (resultPart.trim().startsWith("\"") && resultPart.length() > 1) {
+                        int textEnd = resultPart.indexOf("\"", 1);
+                        if (textEnd != -1) {
+                            return unescapeJson(resultPart.substring(1, textEnd));
+                        }
+                    }
+                }
+            }
+
+            // Verificar si hay error en la respuesta
+            if (responseText.contains("\"error\"")) {
+                int errorStart = responseText.indexOf("\"error\":");
+                if (errorStart != -1) {
+                    String errorPart = responseText.substring(errorStart);
+                    return "Error from " + serverName + ": " + errorPart;
+                }
+            }
+
+            // Si no es JSON válido o no tiene el formato esperado, devolver la respuesta tal como está
+            return responseText;
+
+        } catch (Exception e) {
+            log.warn("Failed to parse MCP response from {}, returning raw response: {}", serverName, e.getMessage());
+            return responseText;
+        }
+    }
+
+    private String unescapeJson(String str) {
+        return str.replace("\\\"", "\"")
+                  .replace("\\n", "\n")
+                  .replace("\\r", "\r")
+                  .replace("\\t", "\t")
+                  .replace("\\\\", "\\");
+    }
+
+    private String handleWebSocketMessage(McpServer server, String message) {
+        log.info("Handling WebSocket message for server: {}", server.getName());
+
+        // TODO: Implementar comunicación WebSocket real con el servidor MCP
+        return "WebSocket communication with " + server.getName() + " is not yet implemented.";
+    }
+
+    private String handleTcpMessage(McpServer server, String message) {
+        log.info("Handling TCP message for server: {}", server.getName());
+
+        // TODO: Implementar comunicación TCP real con el servidor MCP
+        return "TCP communication with " + server.getName() + " is not yet implemented.";
+    }
+
     public List<String> getConversationIds() {
         return new ArrayList<>(conversations.keySet());
     }
-    
+
     public void clearConversation(String conversationId) {
         conversations.remove(conversationId);
         log.info("Cleared conversation: {}", conversationId);
