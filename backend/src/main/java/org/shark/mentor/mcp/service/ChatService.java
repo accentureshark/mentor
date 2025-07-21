@@ -5,6 +5,7 @@ import org.shark.mentor.mcp.model.McpRequest;
 import org.shark.mentor.mcp.model.McpServer;
 import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.*;
 import java.net.URI;
@@ -26,6 +27,7 @@ public class ChatService {
     private final Map<String, List<ChatMessage>> conversations = new ConcurrentHashMap<>();
     private final McpServerService mcpServerService;
     private final HttpClient httpClient;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public ChatService(McpServerService mcpServerService) {
         this.mcpServerService = mcpServerService;
@@ -326,55 +328,27 @@ public class ChatService {
         try {
             log.debug("Parsing MCP response from {}: {}", serverName, responseText);
 
-            // Intentar parsear como JSON MCP
-            if (responseText.contains("\"result\"")) {
-                // Extraer el resultado del JSON (implementación simple)
-                int resultStart = responseText.indexOf("\"result\":");
-                if (resultStart != -1) {
-                    String resultPart = responseText.substring(resultStart + 9);
+            Map<String, Object> json = objectMapper.readValue(responseText, Map.class);
 
-                    // Buscar el contenido del mensaje en diferentes formatos posibles
-                    if (resultPart.contains("\"content\"")) {
-                        int contentStart = resultPart.indexOf("\"content\":\"") + 11;
-                        int contentEnd = resultPart.indexOf("\"", contentStart);
-                        if (contentEnd != -1) {
-                            String content = resultPart.substring(contentStart, contentEnd);
-                            return unescapeJson(content);
+            if (json.containsKey("result")) {
+                Map<String, Object> result = (Map<String, Object>) json.get("result");
+                Object contentObj = result.get("content");
+                if (contentObj instanceof List<?> contentList && !contentList.isEmpty()) {
+                    StringBuilder sb = new StringBuilder();
+                    for (Object item : contentList) {
+                        if (item instanceof Map<?,?> itemMap && itemMap.containsKey("text")) {
+                            sb.append(itemMap.get("text")).append("\n");
                         }
                     }
-
-                    // Buscar respuesta directa
-                    if (resultPart.contains("\"response\"")) {
-                        int responseStart = resultPart.indexOf("\"response\":\"") + 12;
-                        int responseEnd = resultPart.indexOf("\"", responseStart);
-                        if (responseEnd != -1) {
-                            String content = resultPart.substring(responseStart, responseEnd);
-                            return unescapeJson(content);
-                        }
-                    }
-
-                    // Si es un string directo como resultado
-                    if (resultPart.trim().startsWith("\"") && resultPart.length() > 1) {
-                        int textEnd = resultPart.indexOf("\"", 1);
-                        if (textEnd != -1) {
-                            return unescapeJson(resultPart.substring(1, textEnd));
-                        }
-                    }
+                    return sb.toString().trim();
+                } else if (contentObj instanceof String s) {
+                    return s;
                 }
             }
-
-            // Verificar si hay error en la respuesta
-            if (responseText.contains("\"error\"")) {
-                int errorStart = responseText.indexOf("\"error\":");
-                if (errorStart != -1) {
-                    String errorPart = responseText.substring(errorStart);
-                    return "Error from " + serverName + ": " + errorPart;
-                }
+            if (json.containsKey("error")) {
+                return "Error from " + serverName + ": " + objectMapper.writeValueAsString(json.get("error"));
             }
-
-            // Si no es JSON válido o no tiene el formato esperado, devolver la respuesta tal como está
             return responseText;
-
         } catch (Exception e) {
             log.warn("Failed to parse MCP response from {}, returning raw response: {}", serverName, e.getMessage());
             return responseText;
@@ -391,14 +365,12 @@ public class ChatService {
 
     private String handleWebSocketMessage(McpServer server, String message) {
         log.info("Handling WebSocket message for server: {}", server.getName());
-
         // TODO: Implementar comunicación WebSocket real con el servidor MCP
         return "WebSocket communication with " + server.getName() + " is not yet implemented.";
     }
 
     private String handleTcpMessage(McpServer server, String message) {
         log.info("Handling TCP message for server: {}", server.getName());
-
         // TODO: Implementar comunicación TCP real con el servidor MCP
         return "TCP communication with " + server.getName() + " is not yet implemented.";
     }

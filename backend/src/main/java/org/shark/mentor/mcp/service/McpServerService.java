@@ -188,7 +188,7 @@ public class McpServerService {
 
         try {
             // Intentar primero /health, luego la raíz si falla
-            String healthUrl = server.getUrl() + "/health";
+            String healthUrl = server.getUrl() + "/mcp/health";
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(healthUrl))
                     .timeout(Duration.ofSeconds(5))

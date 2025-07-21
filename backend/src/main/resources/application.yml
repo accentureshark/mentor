@@ -25,6 +25,23 @@ mcp:
       name: "SQLite MCP Server"
       description: "Provides database query capabilities for SQLite databases"
       url: "tcp://localhost:3002"  # Cambiar a TCP
+llm:
+  prompts:
+    default: "You are a helpful assistant. Answer the following question: {question}"
+    quiz: "You are a quiz assistant. Answer the following question: {question}"
+    chat: "You are a chat assistant. Respond to the user's message: {message}"
+  provider: ollama      # ollama | openai | localai | bedrock | ...
+  model: hf.co/unsloth/gemma-3n-E4B-it-GGUF:Q4_K_XL         # el modelo a usar
+  api:
+    base-url: http://localhost:11434
+    key: ""             # solo necesario si el proveedor lo requiere
+
+  jackson:
+    serialization:
+      indent_output: true
+    default-property-inclusion: non_null
+
+
 spring:
   application:
     name: mcp-client-backend
