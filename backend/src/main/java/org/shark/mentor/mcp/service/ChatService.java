@@ -209,21 +209,22 @@ public class ChatService {
         }
     }
 
+    // Cambia "chat" por "search_movies" en handleHttpMessage y createMcpMessage
+
     private String handleHttpMessage(McpServer server, String message) {
         log.info("Handling HTTP message for server: {}", server.getName());
 
         try {
-            // Crear el request HTTP para enviar el mensaje
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("jsonrpc", "2.0");
             requestBody.put("id", UUID.randomUUID().toString());
             requestBody.put("method", "tools/call");
 
             Map<String, Object> params = new HashMap<>();
-            params.put("name", "chat");
+            params.put("name", "search_movies"); // Cambiado de "chat" a "search_movies"
 
             Map<String, Object> arguments = new HashMap<>();
-            arguments.put("message", message);
+            arguments.put("query", message); // Cambia "message" por "query" si la herramienta lo requiere
             arguments.put("timestamp", System.currentTimeMillis());
             params.put("arguments", arguments);
 
@@ -250,7 +251,6 @@ public class ChatService {
                 String responseBody = response.body();
                 log.info("HTTP response from {}: {}", server.getName(), responseBody);
 
-                // Parsear la respuesta JSON MCP
                 return parseMcpResponse(responseBody, server.getName());
 
             } else {
@@ -275,7 +275,6 @@ public class ChatService {
     }
 
     private String createMcpMessage(String userMessage) {
-        // Crear mensaje en formato MCP JSON-RPC
         try {
             Map<String, Object> mcpRequest = new HashMap<>();
             mcpRequest.put("jsonrpc", "2.0");
@@ -283,15 +282,14 @@ public class ChatService {
             mcpRequest.put("method", "tools/call");
 
             Map<String, Object> params = new HashMap<>();
-            params.put("name", "chat");
+            params.put("name", "search_movies"); // Cambiado de "chat" a "search_movies"
 
             Map<String, Object> arguments = new HashMap<>();
-            arguments.put("message", userMessage);
+            arguments.put("query", userMessage); // Cambia "message" por "query" si la herramienta lo requiere
             params.put("arguments", arguments);
 
             mcpRequest.put("params", params);
 
-            // Convertir a JSON
             return convertToJson(mcpRequest);
 
         } catch (Exception e) {
@@ -347,6 +345,12 @@ public class ChatService {
 
             if (json.containsKey("result")) {
                 Map<String, Object> result = (Map<String, Object>) json.get("result");
+                // Manejar el caso de results vacío
+                if (result.containsKey("results") && result.get("results") instanceof List<?> resultsList) {
+                    if (resultsList.isEmpty()) {
+                        return "No se encontraron resultados para la consulta.";
+                    }
+                }
                 Object contentObj = result.get("content");
                 if (contentObj instanceof List<?> contentList && !contentList.isEmpty()) {
                     StringBuilder sb = new StringBuilder();
