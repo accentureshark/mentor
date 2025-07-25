@@ -1,0 +1,9 @@
+services:
+  github-mcp:
+    build:
+      context: ./github-mcp
+    ports:
+      - "8080:8080"
+    environment:
+      GITHUB_PERSONAL_ACCESS_TOKEN: "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"
+    restart: unless-stopped

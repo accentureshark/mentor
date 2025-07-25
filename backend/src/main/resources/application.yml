@@ -13,6 +13,7 @@ mcp:
       name: "GitHub MCP Server"
       description: "Provides access to GitHub repositories, issues, and pull requests"
       url: "https://api.github-mcp.com/v1"  # Cambiar a protocolo remoto
+
     - id: filesystem-mcp
       name: "File System MCP Server"
       description: "Provides secure access to local file system operations"
