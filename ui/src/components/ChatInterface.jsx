@@ -157,7 +157,7 @@ export const ChatInterface = ({ selectedServer }) => {
         </div>
 
         <div className="chat-messages">
-          <ScrollPanel ref={scrollPanelRef} className="chat-scroll-panel">
+          <ScrollPanel ref={scrollPanelRef} className="chat-scroll-panel" style={{ height: '100%' }}>
             {messages.length === 0 ? (
               <div className="chat-welcome">
                 <h4>Welcome to {selectedServer.name}</h4>

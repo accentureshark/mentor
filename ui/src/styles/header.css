@@ -21,6 +21,11 @@
     gap: 18px;
 }
 
+.sidebar-toggle-button {
+    color: #fff;
+    margin-right: 0.5rem;
+}
+
 .header-title {
     color: #fff;
     font-size: 1.5rem;
