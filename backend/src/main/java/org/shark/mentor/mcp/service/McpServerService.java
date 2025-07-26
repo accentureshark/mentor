@@ -4,6 +4,8 @@ import org.shark.mentor.mcp.config.McpProperties;
 import org.shark.mentor.mcp.model.McpServer;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -31,7 +33,30 @@ public class McpServerService {
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
 
+        loadServersFromJson();
         loadServersFromConfig();
+    }
+
+    private void loadServersFromJson() {
+        ObjectMapper mapper = new ObjectMapper();
+        try {
+            var resource = getClass().getClassLoader().getResourceAsStream("mcp-servers.json");
+            if (resource == null) {
+                log.warn("mcp-servers.json not found in classpath");
+                return;
+            }
+            JsonNode root = mapper.readTree(resource);
+            List<McpProperties.ServerConfig> configs = new ArrayList<>();
+            for (JsonNode node : root.path("servers")) {
+                configs.add(mapper.treeToValue(node, McpProperties.ServerConfig.class));
+            }
+            if (!configs.isEmpty()) {
+                properties.setServers(configs);
+                log.info("Loaded {} servers from JSON configuration", configs.size());
+            }
+        } catch (IOException e) {
+            log.error("Failed to load servers from JSON", e);
+        }
     }
 
     private void loadServersFromConfig() {
@@ -51,7 +76,7 @@ public class McpServerService {
                 log.info("Loaded server from config: {} ({})", server.getName(), server.getUrl());
             }
         } else {
-            log.warn("No servers configured in application.yml, falling back to sample servers");
+            log.warn("No MCP servers configured, falling back to sample servers");
             initializeSampleServers();
         }
     }
