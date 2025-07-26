@@ -24,5 +24,7 @@ public class McpProperties {
         private String name;
         private String description;
         private String url;
+        private boolean implemented;
+
     }
 }

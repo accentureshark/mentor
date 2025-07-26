@@ -1,14 +1,16 @@
 package org.shark.mentor.mcp.service;
 
-import org.shark.mentor.mcp.model.ChatMessage;
-import org.shark.mentor.mcp.model.McpRequest;
-import org.shark.mentor.mcp.model.McpServer;
-import org.shark.mentor.mcp.service.LlmService;
-import org.springframework.stereotype.Service;
-import lombok.extern.slf4j.Slf4j;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
+import org.shark.mentor.mcp.model.ChatMessage;
+import org.shark.mentor.mcp.model.McpServer;
+import org.springframework.stereotype.Service;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -18,9 +20,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
-/**
- * Service for handling chat messages and MCP communication
- */
 @Service
 @Slf4j
 public class ChatService {
@@ -39,92 +38,232 @@ public class ChatService {
                 .build();
     }
 
-    public List<ChatMessage> getConversation(String conversationId) {
-        return conversations.getOrDefault(conversationId, new ArrayList<>());
-    }
-
-    public ChatMessage sendMessage(McpRequest request) {
-        String conversationId = request.getConversationId();
-        if (conversationId == null) {
-            conversationId = "default";
-        }
-
-        // Verificar que el servidor existe y está conectado
-        Optional<McpServer> serverOpt = mcpServerService.getServer(request.getServerId());
-        if (serverOpt.isEmpty()) {
-            throw new IllegalArgumentException("Server not found: " + request.getServerId());
-        }
-
-        McpServer server = serverOpt.get();
-        if (!"CONNECTED".equals(server.getStatus())) {
-            throw new IllegalStateException("Server is not connected: " + server.getName());
-        }
-
-        // Add user message
-        ChatMessage userMessage = ChatMessage.builder()
-            .id(UUID.randomUUID().toString())
-            .role("USER")
-            .content(request.getMessage())
-            .timestamp(System.currentTimeMillis())
-            .serverId(request.getServerId())
-            .build();
-
-        addMessageToConversation(conversationId, userMessage);
-
-        // Get additional context from the connected MCP server
-        ChatMessage contextMessage = communicateWithMcpServer(request, server);
-
-        // Generate the final response using the configured LLM
-        String llmOutput = llmService.generate(request.getMessage(), contextMessage.getContent());
-        ChatMessage assistantMessage = ChatMessage.builder()
-            .id(UUID.randomUUID().toString())
-            .role("ASSISTANT")
-            .content(llmOutput)
-            .timestamp(System.currentTimeMillis())
-            .serverId(request.getServerId())
-            .build();
-
-        addMessageToConversation(conversationId, assistantMessage);
-
-        return assistantMessage;
-    }
-
-    private void addMessageToConversation(String conversationId, ChatMessage message) {
-        conversations.computeIfAbsent(conversationId, k -> new ArrayList<>()).add(message);
-        log.info("Added message to conversation {}: {}", conversationId, message.getContent());
-    }
-
-    private ChatMessage communicateWithMcpServer(McpRequest request, McpServer server) {
-        log.info("Communicating with MCP server: {} for message: {}", server.getName(), request.getMessage());
-
+    private List<Map<String, Object>> getToolsViaHttp(McpServer server) {
         try {
-            String response = switch (extractProtocol(server.getUrl())) {
-                case "stdio" -> handleStdioMessage(server, request.getMessage());
-                case "http", "https" -> handleHttpMessage(server, request.getMessage());
-                case "ws", "wss" -> handleWebSocketMessage(server, request.getMessage());
-                case "tcp" -> handleTcpMessage(server, request.getMessage());
-                default -> "Error: Unsupported protocol for server " + server.getName();
-            };
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("jsonrpc", "2.0");
+            requestBody.put("id", UUID.randomUUID().toString());
+            requestBody.put("method", "tools/list");
+            requestBody.put("params", new HashMap<>());
 
-            return ChatMessage.builder()
-                .id(UUID.randomUUID().toString())
-                .role("ASSISTANT")
-                .content(response)
-                .timestamp(System.currentTimeMillis())
-                .serverId(request.getServerId())
-                .build();
+            String jsonBody = convertToJson(requestBody);
+            log.debug("Requesting tools from {}: {}", server.getUrl(), jsonBody);
 
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(server.getUrl() + "/mcp"))
+                    .timeout(Duration.ofSeconds(10))
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            String responseText = response.body();
+            log.debug("tools/list raw response from {}: {}", server.getName(), responseText);
+
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                JsonNode rootNode = objectMapper.readTree(responseText);
+
+                if (!rootNode.isObject()) {
+                    log.warn("Expected JSON object from tools/list, but got: {}", rootNode);
+                    return getDefaultToolsForServer(server);
+                }
+
+                Map<String, Object> responseJson = objectMapper.convertValue(rootNode, Map.class);
+
+                if (responseJson.containsKey("result") && responseJson.get("result") instanceof Map) {
+                    Map<String, Object> result = (Map<String, Object>) responseJson.get("result");
+                    if (result.containsKey("tools") && result.get("tools") instanceof List) {
+                        return (List<Map<String, Object>>) result.get("tools");
+                    }
+                }
+            } else {
+                log.warn("HTTP error from tools/list on {}: status={}, body={}",
+                        server.getName(), response.statusCode(), responseText);
+            }
         } catch (Exception e) {
-            log.error("Error communicating with MCP server {}: {}", server.getName(), e.getMessage());
-
-            return ChatMessage.builder()
-                .id(UUID.randomUUID().toString())
-                .role("ASSISTANT")
-                .content("Sorry, I encountered an error while communicating with " + server.getName() + ": " + e.getMessage())
-                .timestamp(System.currentTimeMillis())
-                .serverId(request.getServerId())
-                .build();
+            log.warn("Failed to get tools via HTTP from {}: {}", server.getName(), e.getMessage());
         }
+
+        return getDefaultToolsForServer(server);
+    }
+
+
+    private List<Map<String, Object>> getToolsViaHttp(McpServer server) {
+        try {
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("jsonrpc", "2.0");
+            requestBody.put("id", UUID.randomUUID().toString());
+            requestBody.put("method", "tools/list");
+            requestBody.put("params", new HashMap<>());
+
+            String jsonBody = convertToJson(requestBody);
+            log.debug("Requesting tools from {}: {}", server.getUrl(), jsonBody);
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(server.getUrl() + "/mcp"))
+                    .timeout(Duration.ofSeconds(10))
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                Map<String, Object> responseJson = objectMapper.readValue(response.body(), Map.class);
+                if (responseJson.containsKey("result") && responseJson.get("result") instanceof Map) {
+                    Map<String, Object> result = (Map<String, Object>) responseJson.get("result");
+                    if (result.containsKey("tools") && result.get("tools") instanceof List) {
+                        return (List<Map<String, Object>>) result.get("tools");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to get tools via HTTP from {}: {}", server.getName(), e.getMessage());
+        }
+
+        return getDefaultToolsForServer(server);
+    }
+
+    private List<Map<String, Object>> getDefaultToolsForServer(McpServer server) {
+        List<Map<String, Object>> tools = new ArrayList<>();
+
+        // Configurar herramientas por defecto basadas en el tipo de servidor
+        if ("melian-local".equals(server.getId())) {
+            // Herramientas para el servidor local MELIAN
+            Map<String, Object> searchTool = new HashMap<>();
+            searchTool.put("name", "search_characters");
+            searchTool.put("description", "Search for character information");
+            Map<String, Object> inputSchema = new HashMap<>();
+            inputSchema.put("type", "object");
+            Map<String, Object> properties = new HashMap<>();
+            Map<String, Object> queryProp = new HashMap<>();
+            queryProp.put("type", "string");
+            queryProp.put("description", "Character name to search for");
+            properties.put("query", queryProp);
+            inputSchema.put("properties", properties);
+            inputSchema.put("required", Arrays.asList("query"));
+            searchTool.put("inputSchema", inputSchema);
+            tools.add(searchTool);
+
+            // Agregar herramienta de búsqueda general
+            Map<String, Object> generalSearch = new HashMap<>();
+            generalSearch.put("name", "search");
+            generalSearch.put("description", "General search functionality");
+            generalSearch.put("inputSchema", inputSchema);
+            tools.add(generalSearch);
+        } else {
+            // Herramientas genéricas para otros servidores
+            Map<String, Object> defaultTool = new HashMap<>();
+            defaultTool.put("name", "search");
+            defaultTool.put("description", "Default search tool");
+            Map<String, Object> inputSchema = new HashMap<>();
+            inputSchema.put("type", "object");
+            Map<String, Object> properties = new HashMap<>();
+            Map<String, Object> queryProp = new HashMap<>();
+            queryProp.put("type", "string");
+            queryProp.put("description", "Search query");
+            properties.put("query", queryProp);
+            inputSchema.put("properties", properties);
+            inputSchema.put("required", Arrays.asList("query"));
+            defaultTool.put("inputSchema", inputSchema);
+            tools.add(defaultTool);
+        }
+
+        return tools;
+    }
+
+    private String extractQueryFromMessage(String message) {
+        // Extraer la consulta específica del mensaje del usuario
+        String lowerMessage = message.toLowerCase().trim();
+
+        // Para consultas sobre personajes específicos
+        if (lowerMessage.contains("iron man")) {
+            return "Iron Man";
+        }
+        if (lowerMessage.contains("spider-man") || lowerMessage.contains("spiderman")) {
+            return "Spider-Man";
+        }
+        if (lowerMessage.contains("batman")) {
+            return "Batman";
+        }
+        if (lowerMessage.contains("superman")) {
+            return "Superman";
+        }
+
+        // Para consultas más generales, extraer palabras clave
+        String[] words = message.split("\\s+");
+        for (String word : words) {
+            // Buscar palabras que parezcan nombres propios (empiezan con mayúscula)
+            if (word.length() > 2 && Character.isUpperCase(word.charAt(0))) {
+                return word;
+            }
+        }
+
+        // Si no se encuentra nada específico, devolver el mensaje completo
+        return message.trim();
+    }
+
+    private Map<String, Object> selectBestTool(String userMessage, List<Map<String, Object>> availableTools) {
+        log.debug("Selecting best tool for message: '{}' from {} available tools", userMessage, availableTools.size());
+
+        if (availableTools.isEmpty()) {
+            return null;
+        }
+
+        String lowerMessage = userMessage.toLowerCase();
+
+        // Mapeo inteligente basado en palabras clave en el mensaje del usuario
+        for (Map<String, Object> tool : availableTools) {
+            String toolName = (String) tool.get("name");
+
+            if (toolName == null) continue;
+
+            // Priorizar search_movies para consultas sobre personajes de películas/superhéroes
+            if ((lowerMessage.contains("iron man") || lowerMessage.contains("spider-man") ||
+                    lowerMessage.contains("batman") || lowerMessage.contains("superman") ||
+                    lowerMessage.contains("personaje") || lowerMessage.contains("character") ||
+                    lowerMessage.contains("héroe") || lowerMessage.contains("hero") ||
+                    lowerMessage.contains("superhéroe") || lowerMessage.contains("datos") ||
+                    lowerMessage.contains("información")) &&
+                    toolName.equals("search_movies")) {
+                log.info("Selected tool '{}' for character/movie search", toolName);
+                return tool;
+            }
+
+            // Búsqueda de películas específicas
+            if ((lowerMessage.contains("película") || lowerMessage.contains("movie") ||
+                    lowerMessage.contains("film")) &&
+                    (toolName.contains("movie") || toolName.contains("search_movies"))) {
+                log.info("Selected tool '{}' for movie search", toolName);
+                return tool;
+            }
+
+            // Búsqueda de personajes/caracteres con herramientas específicas
+            if ((lowerMessage.contains("personaje") || lowerMessage.contains("character") ||
+                    lowerMessage.contains("héroe") || lowerMessage.contains("hero") ||
+                    lowerMessage.contains("superhéroe")) &&
+                    (toolName.contains("character") || toolName.contains("search_characters"))) {
+                log.info("Selected tool '{}' for character search", toolName);
+                return tool;
+            }
+
+            // Búsqueda general
+            if ((lowerMessage.contains("buscar") || lowerMessage.contains("search") ||
+                    lowerMessage.contains("encontrar") || lowerMessage.contains("datos") ||
+                    lowerMessage.contains("información")) &&
+                    (toolName.equals("search") || toolName.contains("search"))) {
+                log.info("Selected tool '{}' for general search", toolName);
+                return tool;
+            }
+        }
+
+        // Si no hay coincidencia específica, usar la primera herramienta disponible
+        Map<String, Object> defaultTool = availableTools.get(0);
+        log.info("No specific tool match found, using default tool: {}", defaultTool.get("name"));
+        return defaultTool;
     }
 
     private String extractProtocol(String url) {
@@ -134,7 +273,7 @@ public class ChatService {
         return url.substring(0, url.indexOf("://"));
     }
 
-    private String handleStdioMessage(McpServer server, String message) {
+    private String handleStdioMessage(McpServer server, String message, Map<String, Object> selectedTool) {
         log.info("Handling stdio message for server: {}", server.getName());
 
         try {
@@ -152,7 +291,7 @@ public class ChatService {
             // Enviar el mensaje al proceso via stdin
             try (PrintWriter writer = new PrintWriter(process.getOutputStream(), true)) {
                 // Enviar mensaje en formato JSON para MCP
-                String mcpMessage = createMcpMessage(message);
+                String mcpMessage = createMcpMessage(message, selectedTool);
                 writer.println(mcpMessage);
                 writer.flush();
             }
@@ -210,8 +349,9 @@ public class ChatService {
 
     // Cambia "chat" por "search_movies" en handleHttpMessage y createMcpMessage
 
-    private String handleHttpMessage(McpServer server, String message) {
-        log.info("Handling HTTP message for server: {}", server.getName());
+    private String handleHttpMessage(McpServer server, String message, Map<String, Object> selectedTool) {
+        log.info("Handling HTTP message for server: {} with tool: {}", server.getName(),
+                selectedTool != null ? selectedTool.get("name") : "default");
 
         try {
             Map<String, Object> requestBody = new HashMap<>();
@@ -220,10 +360,19 @@ public class ChatService {
             requestBody.put("method", "tools/call");
 
             Map<String, Object> params = new HashMap<>();
-            params.put("name", "search_movies"); // Cambiado de "chat" a "search_movies"
+
+            // Usar la herramienta seleccionada dinámicamente
+            String toolName = "search"; // valor por defecto
+            if (selectedTool != null && selectedTool.get("name") != null) {
+                toolName = (String) selectedTool.get("name");
+            }
+            params.put("name", toolName);
+
+            // Extraer el nombre del personaje/consulta del mensaje del usuario
+            String query = extractQueryFromMessage(message);
 
             Map<String, Object> arguments = new HashMap<>();
-            arguments.put("query", message); // Cambia "message" por "query" si la herramienta lo requiere
+            arguments.put("query", query);
             arguments.put("timestamp", System.currentTimeMillis());
             params.put("arguments", arguments);
 
@@ -273,7 +422,7 @@ public class ChatService {
         }
     }
 
-    private String createMcpMessage(String userMessage) {
+    private String createMcpMessage(String userMessage, Map<String, Object> selectedTool) {
         try {
             Map<String, Object> mcpRequest = new HashMap<>();
             mcpRequest.put("jsonrpc", "2.0");
@@ -281,10 +430,17 @@ public class ChatService {
             mcpRequest.put("method", "tools/call");
 
             Map<String, Object> params = new HashMap<>();
-            params.put("name", "search_movies"); // Cambiado de "chat" a "search_movies"
+
+            // Usar la herramienta seleccionada dinámicamente
+            String toolName = "search"; // valor por defecto
+            if (selectedTool != null && selectedTool.get("name") != null) {
+                toolName = (String) selectedTool.get("name");
+            }
+            params.put("name", toolName);
 
             Map<String, Object> arguments = new HashMap<>();
-            arguments.put("query", userMessage); // Cambia "message" por "query" si la herramienta lo requiere
+            String query = extractQueryFromMessage(userMessage);
+            arguments.put("query", query);
             params.put("arguments", arguments);
 
             mcpRequest.put("params", params);
@@ -324,16 +480,16 @@ public class ChatService {
 
     private String escapeJson(String str) {
         return str.replace("\"", "\\\"")
-                  .replace("\n", "\\n")
-                  .replace("\r", "\\r")
-                  .replace("\t", "\\t")
-                  .replace("\\", "\\\\");
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t")
+                .replace("\\", "\\\\");
     }
 
     private boolean isCompleteResponse(String line) {
         // Verificar si la línea indica una respuesta completa de MCP
         return line.contains("\"result\"") || line.contains("\"error\"") ||
-               (line.trim().endsWith("}") && line.contains("\"jsonrpc\""));
+                (line.trim().endsWith("}") && line.contains("\"jsonrpc\""));
     }
 
     private String parseMcpResponse(String responseText, String serverName) {
@@ -354,7 +510,7 @@ public class ChatService {
                 if (contentObj instanceof List<?> contentList && !contentList.isEmpty()) {
                     StringBuilder sb = new StringBuilder();
                     for (Object item : contentList) {
-                        if (item instanceof Map<?,?> itemMap && itemMap.containsKey("text")) {
+                        if (item instanceof Map<?, ?> itemMap && itemMap.containsKey("text")) {
                             sb.append(itemMap.get("text")).append("\n");
                         }
                     }
@@ -375,10 +531,10 @@ public class ChatService {
 
     private String unescapeJson(String str) {
         return str.replace("\\\"", "\"")
-                  .replace("\\n", "\n")
-                  .replace("\\r", "\r")
-                  .replace("\\t", "\t")
-                  .replace("\\\\", "\\");
+                .replace("\\n", "\n")
+                .replace("\\r", "\r")
+                .replace("\\t", "\t")
+                .replace("\\\\", "\\");
     }
 
     private String handleWebSocketMessage(McpServer server, String message) {
