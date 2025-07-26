@@ -17,8 +17,14 @@ public class McpServer {
     private String name;
     private String description;
     private String url;
-    private String status; // CONNECTED, DISCONNECTED, ERROR
+    private String baseUrl;
+    private String status;
     private Long lastConnected;
+    private String lastError;
+    private String protocol;
+    private Boolean implemented;
+
+
 
     // Constructor adicional para 5 parámetros
     public McpServer(String id, String name, String description, String url, String status) {
@@ -28,5 +34,13 @@ public class McpServer {
         this.url = url;
         this.status = status;
         this.lastConnected = null;
+    }
+
+    public boolean isRemote() {
+        return protocol != null && (protocol.equalsIgnoreCase("http") || protocol.equalsIgnoreCase("https"));
+    }
+
+    public boolean isImplemented() {
+        return implemented != null && implemented;
     }
 }

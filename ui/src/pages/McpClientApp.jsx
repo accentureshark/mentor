@@ -8,7 +8,6 @@ const McpClientApp = () => {
   const [selectedServer, setSelectedServer] = useState(null);
   const [servers, setServers] = useState([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
   const toggleSidebar = () => setSidebarCollapsed(prev => !prev);
 
   const handleServerSelect = (server) => {

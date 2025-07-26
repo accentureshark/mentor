@@ -110,49 +110,62 @@ export const McpServerList = ({ onServerSelect, selectedServerId, onServersUpdat
   const handleConnectServer = async (server) => {
     setLoading(true);
     try {
-      console.log('Attempting to connect to server:', server.id, server.name);
+      console.log('🔌 Connecting to server:', server.id, server.name);
       const protocolInfo = getProtocolInfo(server.url);
-      console.log(`Connecting via protocol: ${protocolInfo.protocol}, isRemote: ${protocolInfo.isRemote}`);
 
       const response = await mcpServerService.connectToServer(server.id);
-      console.log('Connection response:', response);
-      console.log('Connection attempt completed for:', server.name);
+      console.log('🌐 Response from connectToServer:', response);
 
-      // Solo mostrar warning si el protocolo no está implementado
-      if (!protocolInfo.isImplemented) {
-        const protocolText = protocolInfo.isRemote ? 'remote' : 'local';
-        toast.current?.show({
-          severity: 'warning',
-          summary: 'Implementation Pending',
-          detail: `${server.name} uses ${protocolInfo.protocol}:// protocol (${protocolText}) - Backend implementation required`,
-          life: 5000,
-        });
-      } else {
+      // Evaluar estado de conexión devuelto por el backend
+      if (response.status === 'CONNECTED') {
         toast.current?.show({
           severity: 'success',
           summary: 'Connected',
           detail: `Successfully connected to ${server.name}`,
           life: 3000,
         });
+      } else {
+        const errorMsg = response.lastError
+            ? `Reason: ${response.lastError}`
+            : 'No additional information';
+
+        toast.current?.show({
+          severity: 'warn',
+          summary: 'Connection Attempted',
+          detail: `${server.name} responded with status: ${response.status}. ${errorMsg}`,
+          life: 5000,
+        });
       }
 
-      // Recargar inmediatamente para actualizar el estado
+      // Advertencia por protocolo no implementado
+      if (!protocolInfo.isImplemented) {
+        const protocolText = protocolInfo.isRemote ? 'remote' : 'local';
+        toast.current?.show({
+          severity: 'info',
+          summary: 'Protocol Warning',
+          detail: `${server.name} uses ${protocolInfo.protocol} (${protocolText}) — Backend implementation may be required.`,
+          life: 5000,
+        });
+      }
+
+      // Recargar lista de servidores para reflejar estado actualizado
       await loadServers();
 
     } catch (error) {
-      console.error('Error connecting to server:', error);
+      console.error('❌ Error connecting to server:', error);
       toast.current?.show({
         severity: 'error',
         summary: 'Error',
         detail: `Failed to connect to ${server.name}`,
-        life: 3000,
+        life: 4000,
       });
-      // Recargar servidores incluso en caso de error para reflejar el estado actual
       await loadServers();
     } finally {
       setLoading(false);
     }
   };
+
+
 
   const formatLastConnected = (timestamp) => {
     if (!timestamp) return 'Never';

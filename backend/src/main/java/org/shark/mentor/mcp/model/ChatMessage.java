@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
+import java.util.UUID;
+
 /**
  * Represents a chat message in the MCP client
  */
@@ -13,9 +15,19 @@ import lombok.AllArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ChatMessage {
+
     private String id;
-    private String role; // USER, ASSISTANT, SYSTEM
+    private String role;
     private String content;
-    private Long timestamp;
-    private String serverId; // Which MCP server this message is related to
+    private long timestamp;
+    private String serverId;
+
+    public static ChatMessage system(String content) {
+        ChatMessage message = new ChatMessage();
+        message.id = UUID.randomUUID().toString();
+        message.role = "SYSTEM";
+        message.content = content;
+        message.timestamp = System.currentTimeMillis();
+        return message;
+    }
 }
