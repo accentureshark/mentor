@@ -6,7 +6,7 @@ export const McpHeader = ({ onToggleSidebar, sidebarCollapsed }) => {  return (
     <header className="header-container">
       <div className="header-logo">
           <Button
-              icon="pi pi-bars"
+              icon={sidebarCollapsed ? 'pi pi-bars' : 'pi pi-angle-left'}
               className="p-button-text sidebar-toggle-button"
               onClick={onToggleSidebar}
               aria-label="Toggle sidebar"

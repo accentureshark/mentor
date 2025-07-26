@@ -19,6 +19,13 @@
   flex-direction: column;
   background: #f8f9fa;
   border-right: 1px solid #e9ecef;
+  transition: width 0.3s ease;
+  overflow: hidden;
+}
+
+.mcp-client-sidebar.collapsed {
+  width: 0;
+  min-width: 0;
 }
 
 .mcp-client-chat {
