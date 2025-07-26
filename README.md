@@ -57,6 +57,8 @@ with the running application.
 1. Open http://localhost:5174 in your browser
 2. Select an MCP server from the left sidebar
 3. Start chatting with the selected server
+4. The assistant responds strictly using the context returned by the MCP server
+   and avoids inferring or adding new information
 
 ## Make Targets
 

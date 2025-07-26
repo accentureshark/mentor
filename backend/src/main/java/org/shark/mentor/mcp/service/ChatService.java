@@ -75,8 +75,7 @@ public class ChatService {
         ChatMessage contextMessage = communicateWithMcpServer(request, server);
 
         // Generate the final response using the configured LLM
-        /// String llmOutput = llmService.generate(request.getMessage(), contextMessage.getContent());
-        String llmOutput = llmService.generate(contextMessage.getContent(), null);
+        String llmOutput = llmService.generate(request.getMessage(), contextMessage.getContent());
         ChatMessage assistantMessage = ChatMessage.builder()
             .id(UUID.randomUUID().toString())
             .role("ASSISTANT")
