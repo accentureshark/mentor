@@ -12,7 +12,7 @@ export const McpHeader = ({ onToggleSidebar, sidebarCollapsed }) => {  return (
               aria-label="Toggle sidebar"
           />
         <img src={logo} alt="Logo" className="logo" height={80} width={100} />
-        <h1 className="header-title">MCP Client - Model Context Protocol Interface</h1>
+        <h1 className="header-title">Mentor - Model Context Protocol Client Interface</h1>
       </div>
       <div className="header-info">
         <span className="header-info-text">No authentication required</span>
