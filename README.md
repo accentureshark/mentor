@@ -45,6 +45,13 @@ The client comes pre-configured with several MCP servers:
 4. **Brave Search MCP Server** - Web search capabilities
 5. **SQLite MCP Server** - Database query operations
 
+### IDE configuration
+
+A JSON version of these server settings is available at
+`backend/src/main/resources/mcp-servers.json`.  This file can be used directly
+with the VSCode or IntelliJ MCP client plugins to keep the IDE configuration in
+sync with the application's `application.yml`.
+
 ## Usage
 
 1. Open http://localhost:5174 in your browser
