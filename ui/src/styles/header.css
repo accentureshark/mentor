@@ -32,6 +32,11 @@
     object-fit: contain;
 }
 
+.sidebar-toggle-button {
+    margin-right: 8px;
+    color: #fff;
+}
+
 .header-button-item {
     background: transparent;
     padding: 0.75rem 1.5rem;
