@@ -298,28 +298,12 @@ public class ChatService {
     }
 
     private String convertToJson(Map<String, Object> map) {
-        // Implementación simple de JSON - en producción usar ObjectMapper
-        StringBuilder json = new StringBuilder("{");
-        boolean first = true;
-
-        for (Map.Entry<String, Object> entry : map.entrySet()) {
-            if (!first) json.append(",");
-            json.append("\"").append(entry.getKey()).append("\":");
-
-            Object value = entry.getValue();
-            if (value instanceof String) {
-                json.append("\"").append(escapeJson((String) value)).append("\"");
-            } else if (value instanceof Map) {
-                json.append(convertToJson((Map<String, Object>) value));
-            } else if (value instanceof Number) {
-                json.append(value);
-            } else {
-                json.append("\"").append(value).append("\"");
-            }
-            first = false;
+        try {
+            return objectMapper.writeValueAsString(map);
+        } catch (Exception e) {
+            log.error("Failed to convert map to JSON", e);
+            return "{}";
         }
-        json.append("}");
-        return json.toString();
     }
 
     private String escapeJson(String str) {
