@@ -47,10 +47,10 @@ The client comes pre-configured with several MCP servers:
 
 ### IDE configuration
 
-A JSON version of these server settings is available at
-`backend/src/main/resources/mcp-servers.json`.  This file can be used directly
-with the VSCode or IntelliJ MCP client plugins to keep the IDE configuration in
-sync with the application's `application.yml`.
+The backend now loads its MCP server list from
+`backend/src/main/resources/mcp-servers.json`. This same file can be used
+directly with the VSCode or IntelliJ MCP client plugins so the IDE stays in sync
+with the running application.
 
 ## Usage
 

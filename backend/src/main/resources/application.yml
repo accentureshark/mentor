@@ -4,51 +4,7 @@ mcp:
   server:
     port: 3000
     host: localhost
-  servers:
-    - id: melian-local
-      name: "Melian MCP Server (Local)"
-      description: "Local MELIAN - Módulo de Embedding y Lógica Inteligente para Acceso Natural"
-      url: "http://localhost:3000"
-      implemented: true
-
-    - id: github-mcp
-      name: "GitHub MCP Server"
-      description: "Provides access to GitHub repositories, issues, and pull requests"
-      url: "https://api.github-mcp.com/v1"  # Cambiar a protocolo remoto
-    - id: filesystem-mcp
-      name: "File System MCP Server"
-      description: "Provides secure access to local file system operations"
-      url: "ws://localhost:3001/mcp"  # Cambiar a WebSocket
-    - id: brave-search-mcp
-      name: "Brave Search MCP Server"
-      description: "Provides web search capabilities through Brave Search API"
-      url: "https://brave-search-mcp.herokuapp.com"  # Cambiar a HTTPS
-    - id: sqlite-mcp
-      name: "SQLite MCP Server"
-      description: "Provides database query capabilities for SQLite databases"
-      url: "tcp://localhost:3002"  # Cambiar a TCP
-    
-    # Servidores MCP Públicos (sin instalación, solo configuración)
-    - id: coinmarketcap-mcp
-      name: "CoinMarketCap MCP Server"
-      description: "Cryptocurrency market data and information"
-      url: "https://pro-api.coinmarketcap.com/v1"  # Requires free API key
-    - id: openweather-mcp
-      name: "OpenWeather MCP Server"
-      description: "Weather data and forecasts worldwide"
-      url: "https://api.openweathermap.org/data/2.5"  # Requires free API key
-    - id: jsonplaceholder-mcp
-      name: "JSONPlaceholder MCP Server"
-      description: "Free fake REST API for testing and prototyping"
-      url: "https://jsonplaceholder.typicode.com"  # Public, no auth required
-    - id: httpbin-mcp
-      name: "HTTPBin MCP Server"
-      description: "HTTP request and response testing service"
-      url: "https://httpbin.org"  # Public testing service
-    - id: restcountries-mcp
-      name: "REST Countries MCP Server"
-      description: "Information about countries, currencies, languages"
-      url: "https://restcountries.com/v3.1"  # Public, no auth required
+  # Server list is now loaded from `mcp-servers.json` for IDE compatibility
 llm:
   prompts:
     default: "You are a helpful assistant. Answer the following question: {question}"
