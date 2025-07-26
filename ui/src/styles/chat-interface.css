@@ -43,6 +43,10 @@
   height: 100%;
 }
 
+.chat-scroll-panel .p-scrollpanel-wrapper {
+  overflow-y: auto;
+}
+
 .chat-welcome {
   padding: 2rem;
   text-align: center;
