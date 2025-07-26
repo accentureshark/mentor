@@ -21,6 +21,13 @@
   border-right: 1px solid #e9ecef;
 }
 
+.mcp-client-sidebar.collapsed {
+  width: 0;
+  min-width: 0;
+  overflow: hidden;
+  border-right: none;
+}
+
 .mcp-client-chat {
   flex: 1;
   display: flex;

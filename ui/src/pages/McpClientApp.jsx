@@ -7,6 +7,9 @@ import '../styles/mcp-client-app.css';
 const McpClientApp = () => {
   const [selectedServer, setSelectedServer] = useState(null);
   const [servers, setServers] = useState([]);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  const toggleSidebar = () => setSidebarCollapsed(prev => !prev);
 
   const handleServerSelect = (server) => {
     setSelectedServer(server);
@@ -26,9 +29,9 @@ const McpClientApp = () => {
 
   return (
       <div className="mcp-client-app">
-        <McpHeader />
+        <McpHeader onToggleSidebar={toggleSidebar} sidebarCollapsed={sidebarCollapsed} />
         <div className="mcp-client-main">
-          <div className="mcp-client-sidebar">
+          <div className={`mcp-client-sidebar${sidebarCollapsed ? ' collapsed' : ''}`}>
             <McpServerList
                 onServerSelect={handleServerSelect}
                 selectedServerId={selectedServer?.id}
