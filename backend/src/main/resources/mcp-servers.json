@@ -7,59 +7,14 @@
       "url": "http://localhost:3000",
       "implemented": true
     },
+
     {
-      "id": "github-mcp",
-      "name": "GitHub MCP Server",
-      "description": "Provides access to GitHub repositories, issues, and pull requests",
-      "url": "https://api.github-mcp.com/v1"
-    },
-    {
-      "id": "filesystem-mcp",
-      "name": "File System MCP Server",
-      "description": "Provides secure access to local file system operations",
-      "url": "ws://localhost:3001/mcp"
-    },
-    {
-      "id": "brave-search-mcp",
-      "name": "Brave Search MCP Server",
-      "description": "Provides web search capabilities through Brave Search API",
-      "url": "https://brave-search-mcp.herokuapp.com"
-    },
-    {
-      "id": "sqlite-mcp",
-      "name": "SQLite MCP Server",
-      "description": "Provides database query capabilities for SQLite databases",
-      "url": "tcp://localhost:3002"
-    },
-    {
-      "id": "coinmarketcap-mcp",
-      "name": "CoinMarketCap MCP Server",
-      "description": "Cryptocurrency market data and information",
-      "url": "https://pro-api.coinmarketcap.com/v1"
-    },
-    {
-      "id": "openweather-mcp",
-      "name": "OpenWeather MCP Server",
-      "description": "Weather data and forecasts worldwide",
-      "url": "https://api.openweathermap.org/data/2.5"
-    },
-    {
-      "id": "jsonplaceholder-mcp",
-      "name": "JSONPlaceholder MCP Server",
-      "description": "Free fake REST API for testing and prototyping",
-      "url": "https://jsonplaceholder.typicode.com"
-    },
-    {
-      "id": "httpbin-mcp",
-      "name": "HTTPBin MCP Server",
-      "description": "HTTP request and response testing service",
-      "url": "https://httpbin.org"
-    },
-    {
-      "id": "restcountries-mcp",
-      "name": "REST Countries MCP Server",
-      "description": "Information about countries, currencies, languages",
-      "url": "https://restcountries.com/v3.1"
+      "id": "github-stdio",
+      "name": "GitHub MCP Server (STDIO)",
+      "description": "Local GitHub MCP Server running via stdio and Docker",
+      "url": "stdio://docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN=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nan -e GITHUB_DYNAMIC_TOOLSETS=1 ghcr.io/github/github-mcp-server",
+      "implemented": true
     }
+
   ]
 }

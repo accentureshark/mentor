@@ -8,7 +8,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 
-import java.io.IOException;
+import java.io.*;
 import java.net.*;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -20,6 +20,12 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 @Slf4j
 public class McpServerService {
+
+    // Agrega estos campos para manejar los procesos y streams
+    private final Map<String, Process> stdioProcesses = new ConcurrentHashMap<>();
+    private final Map<String, OutputStream> stdioInputs = new ConcurrentHashMap<>();
+    private final Map<String, InputStream> stdioOutputs = new ConcurrentHashMap<>();
+
 
     private final Map<String, McpServer> servers = new ConcurrentHashMap<>();
     private final McpProperties properties;
@@ -169,42 +175,42 @@ public class McpServerService {
         return url.substring(0, url.indexOf("://"));
     }
 
+
     private McpServer connectStdio(McpServer server) {
-        log.info("Attempting stdio connection to: {}", server.getName());
-
-        String command = server.getUrl().substring("stdio://".length());
-        if (command.trim().isEmpty()) {
+        log.info("Conectando vía stdio a: {}", server.getName());
+        String command = server.getUrl().substring("stdio://".length()).trim();
+        if (command.isEmpty()) {
             server.setStatus("ERROR");
-            throw new RuntimeException("Invalid stdio command");
+            throw new RuntimeException("Comando stdio vacío");
         }
-
         try {
+            // Divide el comando en partes para ProcessBuilder
             String[] parts = command.split("\\s+");
-            String executable = parts[0];
+            ProcessBuilder pb = new ProcessBuilder(parts);
+            pb.redirectErrorStream(true); // Redirige stderr a stdout
 
-            if (executable.equals("java")) {
-                ProcessBuilder pb = new ProcessBuilder("java", "-version");
-                Process process = pb.start();
-                int exitCode = process.waitFor();
+            // Inicia el proceso
+            Process process = pb.start();
 
-                if (exitCode == 0) {
-                    log.info("Java found, stdio connection validated for {}", server.getName());
-                    server.setStatus("CONNECTED");
-                } else {
-                    server.setStatus("ERROR");
-                    throw new RuntimeException("Java not available");
-                }
-            } else {
-                log.info("Stdio command validated for {}: {}", server.getName(), command);
-                server.setStatus("CONNECTED");
-            }
+            // Guarda los streams para comunicación posterior
+            stdioProcesses.put(server.getId(), process);
+            stdioInputs.put(server.getId(), process.getOutputStream());
+            stdioOutputs.put(server.getId(), process.getInputStream());
+
+            // Opcional: lee la primera línea para verificar que el server responde
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            String firstLine = reader.readLine();
+            log.info("Primer output stdio: {}", firstLine);
+
+            server.setStatus("CONNECTED");
+            server.setLastConnected(System.currentTimeMillis());
+            log.info("Conexión stdio establecida con {}", server.getName());
         } catch (Exception e) {
-            log.error("Stdio connection error to {}: {}", server.getName(), e.getMessage());
+            log.error("Error conectando stdio a {}: {}", server.getName(), e.getMessage());
             server.setStatus("ERROR");
-            throw new RuntimeException("Stdio connection failed: " + e.getMessage());
+            server.setLastConnected(System.currentTimeMillis());
+            throw new RuntimeException("Fallo conexión stdio: " + e.getMessage());
         }
-
-        server.setLastConnected(System.currentTimeMillis());
         return server;
     }
 
@@ -327,4 +333,18 @@ public class McpServerService {
                 .map(server -> "CONNECTED".equals(server.getStatus()))
                 .orElse(false);
     }
+    // Agrega estos métodos públicos en McpServerService.java
+
+    public Process getStdioProcess(String serverId) {
+        return stdioProcesses.get(serverId);
+    }
+
+    public OutputStream getStdioInput(String serverId) {
+        return stdioInputs.get(serverId);
+    }
+
+    public InputStream getStdioOutput(String serverId) {
+        return stdioOutputs.get(serverId);
+    }
+
 }
