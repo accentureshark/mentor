@@ -293,39 +293,30 @@ public class ChatService {
     }
 
     private String selectBestTool(String message, McpServer server) {
-        String lowerMessage = message.toLowerCase();
-        
-        // Para GitHub MCP Server
-        if (server.getName().toLowerCase().contains("github")) {
-            if (lowerMessage.contains("repositorio") || lowerMessage.contains("repo") || 
-                lowerMessage.contains("lista") || lowerMessage.contains("list")) {
-                return "list_repositories";
+        List<Map<String, Object>> tools = getToolsViaHttp(server);
+        String lower = message.toLowerCase();
+
+        for (Map<String, Object> tool : tools) {
+            Object nameObj = tool.get("name");
+            if (nameObj instanceof String) {
+                String name = ((String) nameObj).toLowerCase();
+                if (lower.contains(name)) {
+                    return (String) nameObj;
+                }
             }
-            if (lowerMessage.contains("buscar") || lowerMessage.contains("search")) {
-                return "search_repositories";
+
+            Object descObj = tool.get("description");
+            if (descObj instanceof String) {
+                String description = ((String) descObj).toLowerCase();
+                for (String word : description.split("\\W+")) {
+                    if (word.length() > 3 && lower.contains(word)) {
+                        return (String) tool.get("name");
+                    }
+                }
             }
-            if (lowerMessage.contains("archivo") || lowerMessage.contains("file") ||
-                lowerMessage.contains("contenido") || lowerMessage.contains("content")) {
-                return "get_file_contents";
-            }
-            if (lowerMessage.contains("issue") || lowerMessage.contains("problema")) {
-                return "list_issues";
-            }
-            if (lowerMessage.contains("pull request") || lowerMessage.contains("pr")) {
-                return "list_pull_requests";
-            }
-            // Default para GitHub
-            return "list_repositories";
         }
-        
-        // Para otros servidores, usar la lógica existente
-        if (lowerMessage.contains("iron man") || lowerMessage.contains("spider") || 
-            lowerMessage.contains("batman") || lowerMessage.contains("superman") ||
-            lowerMessage.contains("película") || lowerMessage.contains("movie")) {
-            return "search_movies";
-        }
-        
-        return "list_repositories"; // Default
+
+        return tools.isEmpty() ? null : (String) tools.get(0).get("name");
     }
     
     private Map<String, Object> extractToolArguments(String message, String toolName) {
@@ -355,13 +346,6 @@ public class ChatService {
                 extractRepoInfo(message, args);
                 break;
                 
-            case "search_movies":
-                // Para búsqueda de películas
-                String movieQuery = extractMovieQuery(message);
-                if (!movieQuery.isEmpty()) {
-                    args.put("query", movieQuery);
-                }
-                break;
         }
         
         return args;
@@ -392,27 +376,9 @@ public class ChatService {
         }
     }
     
-    private String extractMovieQuery(String message) {
-        // Extraer nombres de personajes o películas
-        String[] characters = {"iron man", "spider-man", "batman", "superman", "thor", "hulk"};
-        for (String character : characters) {
-            if (message.toLowerCase().contains(character)) {
-                return character;
-            }
-        }
-        return message; // Usar todo el mensaje como query
-    }
 
     private List<Map<String, Object>> getDefaultToolsForServer(McpServer server) {
-        List<Map<String, Object>> tools = new ArrayList<>();
-        
-        if (server.getName().toLowerCase().contains("github")) {
-            tools.add(Map.of("name", "list_repositories", "description", "List repositories"));
-            tools.add(Map.of("name", "search_repositories", "description", "Search repositories"));
-            tools.add(Map.of("name", "get_file_contents", "description", "Get file contents"));
-        }
-        
-        return tools;
+        return new ArrayList<>();
     }
 
     private String convertToJson(Map<String, Object> map) throws IOException {
