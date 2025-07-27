@@ -91,6 +91,26 @@ export const ChatInterface = ({ selectedServer }) => {
     }
   };
 
+  const handleClearMessages = async () => {
+    try {
+      await chatService.clearConversation(BACKEND_URL, conversationId);
+      setMessages([]);
+      toast.current?.show({
+        severity: 'success',
+        summary: 'Cleared',
+        detail: 'Conversation cleared',
+        life: 2000,
+      });
+    } catch (error) {
+      toast.current?.show({
+        severity: 'error',
+        summary: 'Error',
+        detail: 'Failed to clear conversation',
+        life: 3000,
+      });
+    }
+  };
+
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -163,6 +183,15 @@ export const ChatInterface = ({ selectedServer }) => {
             <div className="chat-server-info">
               <h3>{selectedServer.name}</h3>
               <p>{selectedServer.description}</p>
+            </div>
+            <div className="chat-header-actions">
+              <Button
+                  icon="pi pi-trash"
+                  className="p-button-text"
+                  onClick={handleClearMessages}
+                  disabled={messages.length === 0}
+                  tooltip="Clear conversation"
+              />
             </div>
           </div>
 
