@@ -1,4 +1,4 @@
-# MCP Client - Universal Model Context Protocol Interface
+# Mentor - Universal Model Context Protocol Interface
 
 This is a universal MCP (Model Context Protocol) client that can connect to multiple MCP servers, including the local Melian server and various public MCP servers.
 
