@@ -114,8 +114,17 @@ public class ChatService {
             // Use the MCP tool orchestrator to get context from the server
             String mcpContext = mcpToolOrchestrator.executeTool(server, request.getMessage());
             
-            // Use the enhanced LLM service to generate response with conversation memory
+            // Try to use the enhanced LLM service to generate response with conversation memory
             String assistantContent = enhancedLlmService.generateWithMemory(conversationId, request.getMessage(), mcpContext);
+            
+            // Check if LLM service returned an error and fall back to MCP context
+            if (assistantContent != null && assistantContent.startsWith("Error generating response:")) {
+                log.warn("LLM service returned error for conversation {}, falling back to MCP context: {}", 
+                        conversationId, assistantContent);
+                assistantContent = formatMcpResponse(mcpContext, request.getMessage(), server.getName());
+            } else {
+                log.info("Successfully generated LLM response for conversation {}", conversationId);
+            }
             
             // Create assistant response message
             ChatMessage assistantMessage = ChatMessage.builder()
@@ -147,6 +156,54 @@ public class ChatService {
                 .timestamp(System.currentTimeMillis())
                 .serverId(request.getServerId())
                 .build();
+    }
+
+    private String formatMcpResponse(String mcpContext, String userMessage, String serverName) {
+        if (mcpContext == null || mcpContext.trim().isEmpty()) {
+            return String.format("✅ Successfully contacted %s, but no specific data was returned for: \"%s\"", 
+                    serverName, userMessage);
+        }
+        
+        try {
+            // Try to parse and format JSON response
+            JsonNode jsonNode = objectMapper.readTree(mcpContext);
+            if (jsonNode.isObject()) {
+                StringBuilder formattedResponse = new StringBuilder();
+                formattedResponse.append(String.format("✅ Response from %s:\n\n", serverName));
+                
+                if (jsonNode.has("movies")) {
+                    JsonNode movies = jsonNode.get("movies");
+                    formattedResponse.append("🎬 Movies found:\n");
+                    for (JsonNode movie : movies) {
+                        formattedResponse.append(String.format("• %s (%s) - %s\n", 
+                                movie.path("title").asText("Unknown Title"),
+                                movie.path("year").asText("Unknown Year"),
+                                movie.path("genre").asText("Unknown Genre")));
+                    }
+                } else if (jsonNode.has("movie")) {
+                    JsonNode movie = jsonNode.get("movie");
+                    formattedResponse.append("🎬 Movie Details:\n");
+                    formattedResponse.append(String.format("Title: %s\n", movie.path("title").asText("Unknown")));
+                    formattedResponse.append(String.format("Year: %s\n", movie.path("year").asText("Unknown")));
+                    formattedResponse.append(String.format("Genre: %s\n", movie.path("genre").asText("Unknown")));
+                    formattedResponse.append(String.format("Director: %s\n", movie.path("director").asText("Unknown")));
+                    formattedResponse.append(String.format("Description: %s\n", movie.path("description").asText("No description available")));
+                } else {
+                    // Generic JSON formatting
+                    formattedResponse.append("📋 Raw response:\n");
+                    formattedResponse.append(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(jsonNode));
+                }
+                
+                formattedResponse.append(String.format("\n\n💡 Note: This is direct output from %s. LLM service is currently unavailable for enhanced responses.", serverName));
+                return formattedResponse.toString();
+            }
+        } catch (Exception e) {
+            log.debug("Could not parse MCP response as JSON: {}", e.getMessage());
+        }
+        
+        // Return raw response with formatting
+        return String.format("✅ Response from %s:\n\n%s\n\n💡 Note: LLM service is currently unavailable for enhanced responses.", 
+                serverName, mcpContext);
     }
 
     private ChatMessage sendMessageOriginal(McpRequest request) {
