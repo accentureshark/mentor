@@ -14,6 +14,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Simplified MCP tool orchestrator using langchain4j principles
@@ -29,6 +30,7 @@ public class McpToolOrchestrator {
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
+    private final Set<String> initializedServers = ConcurrentHashMap.newKeySet();
 
     /**
      * Execute MCP tool call with simplified error handling and response processing
@@ -345,8 +347,52 @@ public class McpToolOrchestrator {
     }
 
     private List<Map<String, Object>> getToolsViaStdio(McpServer server) throws Exception {
-        // Simplified STDIO tools/list implementation
-        return Collections.emptyList(); // TODO: Implement when needed
+        OutputStream stdin = mcpServerService.getStdioInput(server.getId());
+        InputStream stdout = mcpServerService.getStdioOutput(server.getId());
+
+        if (stdin == null || stdout == null) {
+            log.warn("STDIO streams not available for server: {}", server.getId());
+            return Collections.emptyList();
+        }
+
+        BufferedReader reader = new BufferedReader(new InputStreamReader(stdout));
+
+        // Send initialize only once per server
+        if (!initializedServers.contains(server.getId())) {
+            Map<String, Object> initRequest = Map.of(
+                    "jsonrpc", "2.0",
+                    "id", UUID.randomUUID().toString(),
+                    "method", "initialize",
+                    "params", Collections.emptyMap()
+            );
+            String initJson = objectMapper.writeValueAsString(initRequest);
+            stdin.write((initJson + "\n").getBytes());
+            stdin.flush();
+            reader.readLine(); // ignore initialize response
+            initializedServers.add(server.getId());
+        }
+
+        Map<String, Object> request = Map.of(
+                "jsonrpc", "2.0",
+                "id", UUID.randomUUID().toString(),
+                "method", "tools/list",
+                "params", Collections.emptyMap()
+        );
+
+        String json = objectMapper.writeValueAsString(request);
+        stdin.write((json + "\n").getBytes());
+        stdin.flush();
+
+        String response = reader.readLine();
+        if (response != null && !response.isBlank()) {
+            JsonNode root = objectMapper.readTree(response);
+            if (root.has("result") && root.get("result").has("tools")) {
+                JsonNode tools = root.get("result").get("tools");
+                return objectMapper.convertValue(tools, List.class);
+            }
+        }
+
+        return Collections.emptyList();
     }
 
     private List<Map<String, Object>> getToolsViaHttp(McpServer server) throws Exception {
