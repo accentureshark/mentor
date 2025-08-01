@@ -9,6 +9,7 @@ import dev.langchain4j.model.chat.ChatLanguageModel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.shark.mentor.mcp.config.LlmProperties;
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -21,7 +22,8 @@ import java.util.Map;
  * and MCP-compliant response generation
  */
 @Slf4j
-@Service("llmServiceEnhanced")
+@Service
+@Primary
 @RequiredArgsConstructor
 public class LlmServiceEnhanced implements LlmService {
 
