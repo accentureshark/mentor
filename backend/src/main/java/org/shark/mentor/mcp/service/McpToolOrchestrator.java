@@ -396,6 +396,34 @@ public class McpToolOrchestrator {
     }
 
     private List<Map<String, Object>> getToolsViaHttp(McpServer server) throws Exception {
+        // Send initialize only once per server when using HTTP
+        if (!initializedServers.contains(server.getId())) {
+            Map<String, Object> initRequest = Map.of(
+                    "jsonrpc", "2.0",
+                    "id", UUID.randomUUID().toString(),
+                    "method", "initialize",
+                    "params", Collections.emptyMap()
+            );
+
+            String initJson = objectMapper.writeValueAsString(initRequest);
+
+            HttpRequest initHttpRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(server.getUrl() + "/mcp"))
+                    .timeout(Duration.ofSeconds(10))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(initJson))
+                    .build();
+
+            // Fire and forget initialize call; ignore response content
+            try {
+                httpClient.send(initHttpRequest, HttpResponse.BodyHandlers.ofString());
+            } catch (Exception e) {
+                log.warn("Failed to initialize server {} via HTTP: {}", server.getId(), e.getMessage());
+            }
+
+            initializedServers.add(server.getId());
+        }
+
         Map<String, Object> request = Map.of(
                 "jsonrpc", "2.0",
                 "id", UUID.randomUUID().toString(),
