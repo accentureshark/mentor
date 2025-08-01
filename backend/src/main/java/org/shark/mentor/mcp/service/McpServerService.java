@@ -347,4 +347,64 @@ public class McpServerService {
         return stdioOutputs.get(serverId);
     }
 
+    public boolean pingServer(String id) {
+        McpServer server = servers.get(id);
+        if (server == null) {
+            throw new IllegalArgumentException("Server not found: " + id);
+        }
+
+        String protocol = extractProtocol(server.getUrl());
+        try {
+            switch (protocol.toLowerCase()) {
+                case "stdio":
+                    return pingStdio(server);
+                case "tcp":
+                case "ws":
+                case "wss":
+                    URI uri = URI.create(server.getUrl());
+                    String host = uri.getHost();
+                    int port = uri.getPort();
+                    if (port == -1) port = 80;
+                    try (Socket socket = new Socket()) {
+                        socket.connect(new InetSocketAddress(host, port), 2000);
+                        return true;
+                    }
+                default:
+                    HttpRequest request = HttpRequest.newBuilder()
+                            .uri(URI.create(server.getUrl() + "/mcp/ping"))
+                            .timeout(Duration.ofSeconds(3))
+                            .GET()
+                            .build();
+                    HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                    return response.statusCode() >= 200 && response.statusCode() < 300;
+            }
+        } catch (Exception e) {
+            log.warn("Ping failed for {}: {}", server.getName(), e.getMessage());
+            return false;
+        }
+    }
+
+    private boolean pingStdio(McpServer server) throws Exception {
+        OutputStream stdin = stdioInputs.get(server.getId());
+        InputStream stdout = stdioOutputs.get(server.getId());
+        if (stdin == null || stdout == null) {
+            return false;
+        }
+
+        Map<String, Object> request = Map.of(
+                "jsonrpc", "2.0",
+                "id", UUID.randomUUID().toString(),
+                "method", "ping",
+                "params", Collections.emptyMap()
+        );
+
+        String json = new ObjectMapper().writeValueAsString(request);
+        stdin.write((json + "\n").getBytes());
+        stdin.flush();
+
+        BufferedReader reader = new BufferedReader(new InputStreamReader(stdout));
+        String line = reader.readLine();
+        return line != null && line.toLowerCase().contains("pong");
+    }
+
 }

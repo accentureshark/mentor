@@ -97,6 +97,22 @@ public class McpServerController {
         }
     }
 
+    @GetMapping("/{id}/ping")
+    public ResponseEntity<String> pingServer(@PathVariable String id) {
+        log.info("Pinging MCP server: {}", id);
+        try {
+            boolean ok = mcpServerService.pingServer(id);
+            if (ok) {
+                return ResponseEntity.ok("pong");
+            } else {
+                return ResponseEntity.status(503).body("unreachable");
+            }
+        } catch (IllegalArgumentException e) {
+            log.error("Server not found: {}", id);
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     @GetMapping("/status")
     public ResponseEntity<String> getConnectionStatus() {
         long connectedCount = mcpServerService.getConnectedServersCount();
