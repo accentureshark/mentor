@@ -26,13 +26,32 @@ public class ChatService {
     private final LlmService llmService;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    
+    // Optional dependencies for simplified implementation
+    private final McpToolOrchestrator mcpToolOrchestrator;
+    private final LlmServiceEnhanced enhancedLlmService;
+    private final boolean useSimplifiedImplementation;
 
-    public ChatService(McpServerService mcpServerService, LlmService llmService) {
+    public ChatService(McpServerService mcpServerService, 
+                      LlmService llmService,
+                      Optional<McpToolOrchestrator> mcpToolOrchestrator,
+                      Optional<LlmServiceEnhanced> enhancedLlmService) {
         this.mcpServerService = mcpServerService;
         this.llmService = llmService;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
+        
+        // Use simplified implementation if available
+        this.mcpToolOrchestrator = mcpToolOrchestrator.orElse(null);
+        this.enhancedLlmService = enhancedLlmService.orElse(null);
+        this.useSimplifiedImplementation = this.mcpToolOrchestrator != null && this.enhancedLlmService != null;
+        
+        if (useSimplifiedImplementation) {
+            log.info("Using simplified langchain4j-based implementation");
+        } else {
+            log.info("Using original implementation");
+        }
     }
 
     public List<ChatMessage> getConversation(String conversationId) {
@@ -45,10 +64,92 @@ public class ChatService {
 
     public void clearConversation(String conversationId) {
         conversations.remove(conversationId);
+        
+        // Also clear from enhanced service if available
+        if (useSimplifiedImplementation && enhancedLlmService != null) {
+            enhancedLlmService.clearConversation(conversationId);
+        }
+        
         log.info("Cleared conversation: {}", conversationId);
     }
 
     public ChatMessage sendMessage(McpRequest request) {
+        // Use simplified implementation if available
+        if (useSimplifiedImplementation) {
+            return sendMessageSimplified(request);
+        } else {
+            return sendMessageOriginal(request);
+        }
+    }
+
+    private ChatMessage sendMessageSimplified(McpRequest request) {
+        String conversationId = request.getConversationId();
+        if (conversationId == null) {
+            conversationId = "default";
+        }
+
+        // Validate server exists and is connected
+        Optional<McpServer> serverOpt = mcpServerService.getServer(request.getServerId());
+        if (serverOpt.isEmpty()) {
+            return createErrorMessage(request, "Server not found: " + request.getServerId());
+        }
+
+        McpServer server = serverOpt.get();
+        if (!"CONNECTED".equals(server.getStatus())) {
+            return createErrorMessage(request, "Server is not connected: " + server.getName());
+        }
+
+        // Create and store user message
+        ChatMessage userMessage = ChatMessage.builder()
+                .id(UUID.randomUUID().toString())
+                .role("USER")
+                .content(request.getMessage())
+                .timestamp(System.currentTimeMillis())
+                .serverId(request.getServerId())
+                .build();
+
+        addMessageToConversation(conversationId, userMessage);
+
+        try {
+            // Use the MCP tool orchestrator to get context from the server
+            String mcpContext = mcpToolOrchestrator.executeTool(server, request.getMessage());
+            
+            // Use the enhanced LLM service to generate response with conversation memory
+            String assistantContent = enhancedLlmService.generateWithMemory(conversationId, request.getMessage(), mcpContext);
+            
+            // Create assistant response message
+            ChatMessage assistantMessage = ChatMessage.builder()
+                    .id(UUID.randomUUID().toString())
+                    .role("ASSISTANT")
+                    .content(assistantContent)
+                    .timestamp(System.currentTimeMillis())
+                    .serverId(request.getServerId())
+                    .build();
+
+            addMessageToConversation(conversationId, assistantMessage);
+            
+            log.info("Successfully processed message using simplified implementation for conversation {} using server {}", 
+                    conversationId, server.getName());
+            
+            return assistantMessage;
+
+        } catch (Exception e) {
+            log.error("Error processing message in simplified implementation for conversation {}: {}", conversationId, e.getMessage(), e);
+            return createErrorMessage(request, "Error processing message: " + e.getMessage());
+        }
+    }
+
+    private ChatMessage createErrorMessage(McpRequest request, String errorMessage) {
+        return ChatMessage.builder()
+                .id(UUID.randomUUID().toString())
+                .role("ASSISTANT")
+                .content(errorMessage)
+                .timestamp(System.currentTimeMillis())
+                .serverId(request.getServerId())
+                .build();
+    }
+
+    private ChatMessage sendMessageOriginal(McpRequest request) {
         String conversationId = request.getConversationId();
         if (conversationId == null) {
             conversationId = "default";
