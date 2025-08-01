@@ -1,0 +1,27 @@
+# syntax=docker/dockerfile:1.4
+
+FROM maven:3-eclipse-temurin-21-alpine AS builder
+
+WORKDIR /app
+
+# Copiar solo el POM para cachear dependencias
+COPY backend/pom.xml .
+
+# Montamos cache Maven (funciona con BuildKit)
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn dependency:go-offline
+
+# Copiamos el resto del código fuente
+COPY backend /app
+
+# Compilamos también usando cache de Maven
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn clean package -DskipTests
+
+# Imagen final
+FROM eclipse-temurin:21-alpine
+
+WORKDIR /app
+COPY --from=builder /app/target/*.jar /app/app.jar
+
+ENTRYPOINT ["java", "-Dspring.profiles.active=docker", "-jar", "/app/app.jar"]
