@@ -6,6 +6,7 @@ import { ScrollPanel } from 'primereact/scrollpanel';
 import { Toast } from 'primereact/toast';
 import { Avatar } from 'primereact/avatar';
 import { chatService } from '../services/chatService';
+import { getServerTools } from '../services/toolService';
 import '../styles/chat-interface.css';
 
 const normalizeBaseUrl = (url) => {
@@ -20,6 +21,7 @@ export const ChatInterface = ({ selectedServer }) => {
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [conversationId] = useState('default');
+  const [tools, setTools] = useState([]);
   const toast = useRef(null);
   const scrollPanelRef = useRef(null);
 
@@ -45,6 +47,11 @@ export const ChatInterface = ({ selectedServer }) => {
   };
 
   useEffect(() => {
+    if (!selectedServer) return;
+    // Cargar tools del servidor seleccionado
+    getServerTools(selectedServer.id)
+      .then(setTools)
+      .catch(() => setTools([]));
     loadConversation();
     // eslint-disable-next-line
   }, [selectedServer, conversationId]);
@@ -183,6 +190,19 @@ export const ChatInterface = ({ selectedServer }) => {
             <div className="chat-server-info">
               <h3>{selectedServer.name}</h3>
               <p>{selectedServer.description}</p>
+              {/* Mostrar tools del servidor */}
+              {tools.length > 0 && (
+                <div className="chat-server-tools">
+                  <strong>Herramientas disponibles:</strong>
+                  <ul>
+                    {tools.map(tool => (
+                      <li key={tool.name}>
+                        <b>{tool.name}</b>: {tool.description}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
             <div className="chat-header-actions">
               <Button

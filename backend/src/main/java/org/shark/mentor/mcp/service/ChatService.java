@@ -24,6 +24,7 @@ public class ChatService {
     private final Map<String, List<ChatMessage>> conversations = new ConcurrentHashMap<>();
     private final McpServerService mcpServerService;
     private final LlmService llmService;
+    private final McpToolService mcpToolService;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
     
@@ -35,13 +36,15 @@ public class ChatService {
     public ChatService(McpServerService mcpServerService, 
                       LlmService llmService,
                       Optional<McpToolOrchestrator> mcpToolOrchestrator,
-                      Optional<LlmServiceEnhanced> enhancedLlmService) {
+                      Optional<LlmServiceEnhanced> enhancedLlmService,
+                      McpToolService mcpToolService) {
         this.mcpServerService = mcpServerService;
         this.llmService = llmService;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
-        
+        this.mcpToolService = mcpToolService;
+
         // Use simplified implementation if available
         this.mcpToolOrchestrator = mcpToolOrchestrator.orElse(null);
         this.enhancedLlmService = enhancedLlmService.orElse(null);
@@ -288,18 +291,16 @@ public class ChatService {
             }
 
             // Determinar la herramienta apropiada basada en el mensaje
-            String toolName = selectBestTool(message, server);
-            Map<String, Object> toolArgs = extractToolArguments(message, toolName);
+            String toolName = mcpToolService.selectBestTool(message, server);
+            Map<String, Object> toolArgs = mcpToolService.extractToolArguments(message, toolName);
 
             // Usar tools/call con la herramienta seleccionada
-            String response = callMcpTool(stdin, stdout, toolName, toolArgs);
+            String response = mcpToolService.callToolViaStdio(stdin, stdout, toolName, toolArgs);
 
             log.info("Respuesta stdio de {}: {}", server.getName(), response);
-            
             if (response == null) {
                 return "Error: No response from MCP server";
             }
-
             try {
                 JsonNode root = objectMapper.readTree(response);
                 if (root.has("result")) {
@@ -319,43 +320,22 @@ public class ChatService {
         }
     }
 
-    private String callMcpTool(OutputStream stdin, InputStream stdout, String toolName, Map<String, Object> arguments) throws IOException {
-        Map<String, Object> toolCall = Map.of(
-                "jsonrpc", "2.0",
-                "id", UUID.randomUUID().toString(),
-                "method", "tools/call",
-                "params", Map.of(
-                        "name", toolName,
-                        "arguments", arguments
-                )
-        );
-
-        String json = objectMapper.writeValueAsString(toolCall);
-        log.info("Enviando llamada de herramienta por stdio: {}", json);
-        stdin.write((json + "\n").getBytes());
-        stdin.flush();
-
-        return new BufferedReader(new InputStreamReader(stdout)).readLine();
-    }
-
-
-
     private String sendMessageViaHttp(McpServer server, String message) {
         try {
             // Obtener herramientas disponibles dinámicamente
-            List<Map<String, Object>> availableTools = getToolsViaHttp(server);
+            List<Map<String, Object>> availableTools = mcpToolService.getTools(server);
             log.debug("Herramientas disponibles en {}: {}", server.getName(), availableTools);
 
             // Seleccionar la mejor herramienta
-            String selectedTool = selectBestTool(message, server);
+            String selectedTool = mcpToolService.selectBestTool(message, server);
             log.debug("Herramienta seleccionada para '{}': {}", message, selectedTool);
 
             // Extraer argumentos para la herramienta
-            Map<String, Object> toolArgs = extractToolArguments(message, selectedTool);
+            Map<String, Object> toolArgs = mcpToolService.extractToolArguments(message, selectedTool);
             log.debug("Argumentos extraídos: {}", toolArgs);
 
             // Usar tools/call con la herramienta seleccionada
-            String response = callMcpToolViaHttp(server, selectedTool, toolArgs);
+            String response = mcpToolService.callToolViaHttp(server, selectedTool, toolArgs);
 
             JsonNode root = objectMapper.readTree(response);
             if (root.has("result")) {
@@ -369,177 +349,5 @@ public class ChatService {
             log.error("Error comunicando por HTTP: {}", e.getMessage(), e);
             return "Error comunicando con el MCP server por HTTP: " + e.getMessage();
         }
-    }
-
-    private String callMcpToolViaHttp(McpServer server, String toolName, Map<String, Object> arguments) throws IOException, InterruptedException {
-        Map<String, Object> toolCall = Map.of(
-                "jsonrpc", "2.0",
-                "id", UUID.randomUUID().toString(),
-                "method", "tools/call",
-                "params", Map.of(
-                        "name", toolName,
-                        "arguments", arguments
-                )
-        );
-
-        String json = objectMapper.writeValueAsString(toolCall);
-        log.info("Enviando llamada de herramienta por HTTP: {}", json);
-
-        HttpRequest httpRequest = HttpRequest.newBuilder()
-                .uri(URI.create(server.getUrl() + "/mcp"))
-                .timeout(Duration.ofSeconds(10))
-                .header("Content-Type", "application/json")
-                .header("Accept", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(json))
-                .build();
-
-        HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
-        return response.body();
-    }
-
-
-
-    private List<Map<String, Object>> getToolsViaHttp(McpServer server) {
-        try {
-            Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("jsonrpc", "2.0");
-            requestBody.put("id", UUID.randomUUID().toString());
-            requestBody.put("method", "tools/list");
-            requestBody.put("params", new HashMap<>());
-
-            String jsonBody = convertToJson(requestBody);
-            log.debug("Requesting tools from {}: {}", server.getUrl(), jsonBody);
-
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(server.getUrl() + "/mcp"))
-                    .timeout(Duration.ofSeconds(10))
-                    .header("Content-Type", "application/json")
-                    .header("Accept", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
-                    .build();
-
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
-            String responseText = response.body();
-            log.debug("tools/list raw response from {}: {}", server.getName(), responseText);
-
-            if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                JsonNode rootNode = objectMapper.readTree(responseText);
-
-                if (!rootNode.isObject()) {
-                    log.warn("Expected JSON object from tools/list, but got: {}", rootNode);
-                    return getDefaultToolsForServer(server);
-                }
-
-                Map<String, Object> responseJson = objectMapper.convertValue(rootNode, Map.class);
-
-                if (responseJson.containsKey("result") && responseJson.get("result") instanceof Map) {
-                    Map<String, Object> result = (Map<String, Object>) responseJson.get("result");
-                    if (result.containsKey("tools") && result.get("tools") instanceof List) {
-                        return (List<Map<String, Object>>) result.get("tools");
-                    }
-                }
-            } else {
-                log.warn("HTTP error from tools/list on {}: status={}, body={}",
-                        server.getName(), response.statusCode(), responseText);
-            }
-        } catch (Exception e) {
-            log.warn("Failed to get tools via HTTP from {}: {}", server.getName(), e.getMessage());
-        }
-
-        return getDefaultToolsForServer(server);
-    }
-
-    private String selectBestTool(String message, McpServer server) {
-        List<Map<String, Object>> tools = getToolsViaHttp(server);
-        String lower = message.toLowerCase();
-
-        for (Map<String, Object> tool : tools) {
-            Object nameObj = tool.get("name");
-            if (nameObj instanceof String) {
-                String name = ((String) nameObj).toLowerCase();
-                if (lower.contains(name)) {
-                    return (String) nameObj;
-                }
-            }
-
-            Object descObj = tool.get("description");
-            if (descObj instanceof String) {
-                String description = ((String) descObj).toLowerCase();
-                for (String word : description.split("\\W+")) {
-                    if (word.length() > 3 && lower.contains(word)) {
-                        return (String) tool.get("name");
-                    }
-                }
-            }
-        }
-
-        return tools.isEmpty() ? null : (String) tools.get(0).get("name");
-    }
-    
-    private Map<String, Object> extractToolArguments(String message, String toolName) {
-        Map<String, Object> args = new HashMap<>();
-        
-        switch (toolName) {
-            case "list_repositories":
-                // Para listar repositorios, podemos agregar filtros opcionales
-                if (message.toLowerCase().contains("público") || message.toLowerCase().contains("public")) {
-                    args.put("type", "public");
-                }
-                if (message.toLowerCase().contains("privado") || message.toLowerCase().contains("private")) {
-                    args.put("type", "private");
-                }
-                break;
-                
-            case "search_repositories":
-                // Extraer términos de búsqueda
-                String searchTerm = extractSearchTerm(message);
-                if (!searchTerm.isEmpty()) {
-                    args.put("q", searchTerm);
-                }
-                break;
-                
-            case "get_file_contents":
-                // Extraer owner, repo y path del mensaje
-                extractRepoInfo(message, args);
-                break;
-                
-        }
-        
-        return args;
-    }
-    
-    private String extractSearchTerm(String message) {
-        // Extraer términos después de "buscar", "search", etc.
-        String[] keywords = {"buscar", "search", "encuentra", "find"};
-        for (String keyword : keywords) {
-            int index = message.toLowerCase().indexOf(keyword);
-            if (index != -1) {
-                String remaining = message.substring(index + keyword.length()).trim();
-                return remaining.split("\\s+")[0]; // Primera palabra después del keyword
-            }
-        }
-        return "";
-    }
-    
-    private void extractRepoInfo(String message, Map<String, Object> args) {
-        // Lógica para extraer owner/repo/path del mensaje
-        // Por ahora, usar valores por defecto o extraer de patrones comunes
-        if (message.contains("/")) {
-            String[] parts = message.split("/");
-            if (parts.length >= 2) {
-                args.put("owner", parts[0].trim());
-                args.put("repo", parts[1].trim());
-            }
-        }
-    }
-    
-
-    private List<Map<String, Object>> getDefaultToolsForServer(McpServer server) {
-        return new ArrayList<>();
-    }
-
-    private String convertToJson(Map<String, Object> map) throws IOException {
-        return objectMapper.writeValueAsString(map);
     }
 }
