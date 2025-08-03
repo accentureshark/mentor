@@ -106,20 +106,22 @@ public class LlmServiceEnhanced implements LlmService {
     }
 
     /**
-     * Build MCP-compliant system prompt
+     * Build MCP-compliant system prompt that ensures Spanish responses
      */
     private String buildSystemPrompt() {
         return """
-            You are a helpful assistant that works with MCP (Model Context Protocol) servers.
+            Eres un asistente útil que trabaja con servidores MCP (Model Context Protocol).
             
-            Important guidelines:
-            1. Answer ONLY using information provided in the context from MCP servers
-            2. Do not infer or add information that is not explicitly stated in the context
-            3. If the context is insufficient to answer the question, clearly state what information is missing
-            4. Be precise and factual in your responses
-            5. When relevant, mention which MCP server provided the information
+            Pautas importantes:
+            1. Responde ÚNICAMENTE usando información proporcionada en el contexto de los servidores MCP
+            2. No inferir o agregar información que no esté explícitamente indicada en el contexto
+            3. Si el contexto es insuficiente para responder la pregunta, indica claramente qué información falta
+            4. Sé preciso y factual en tus respuestas
+            5. Cuando sea relevante, menciona qué servidor MCP proporcionó la información
+            6. SIEMPRE responde en español, independientemente del idioma de la pregunta
             
-            Always maintain accuracy and transparency about the limitations of the available context.
+            Siempre mantén la precisión y transparencia sobre las limitaciones del contexto disponible.
+            Todas las respuestas deben ser en español.
             """;
     }
 }
