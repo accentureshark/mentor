@@ -158,12 +158,15 @@ public class McpServerService {
                     log.warn("Unsupported protocol: {} for server: {}", protocol, server.getName());
                     server.setStatus("ERROR");
                     server.setLastConnected(System.currentTimeMillis());
+                    server.setLastError("Unsupported protocol: " + protocol);
                     return server;
             }
         } catch (Exception e) {
-            log.error("Connection failed for server {}: {}", server.getName(), e.getMessage());
+            String errorMsg = e.getClass().getSimpleName() + ": " + (e.getMessage() != null ? e.getMessage() : "Connection failed");
+            log.error("Connection failed for server {}: {}", server.getName(), errorMsg, e);
             server.setStatus("ERROR");
             server.setLastConnected(System.currentTimeMillis());
+            server.setLastError(errorMsg);
             return server;
         }
     }
@@ -181,6 +184,7 @@ public class McpServerService {
         String command = server.getUrl().substring("stdio://".length()).trim();
         if (command.isEmpty()) {
             server.setStatus("ERROR");
+            server.setLastError("Comando stdio vacío");
             throw new RuntimeException("Comando stdio vacío");
         }
         try {
@@ -204,12 +208,15 @@ public class McpServerService {
 
             server.setStatus("CONNECTED");
             server.setLastConnected(System.currentTimeMillis());
+            server.setLastError(null);
             log.info("Conexión stdio establecida con {}", server.getName());
         } catch (Exception e) {
-            log.error("Error conectando stdio a {}: {}", server.getName(), e.getMessage());
+            String errorMsg = e.getClass().getSimpleName() + ": " + (e.getMessage() != null ? e.getMessage() : "Connection failed");
+            log.error("Error conectando stdio a {}: {}", server.getName(), errorMsg, e);
             server.setStatus("ERROR");
             server.setLastConnected(System.currentTimeMillis());
-            throw new RuntimeException("Fallo conexión stdio: " + e.getMessage());
+            server.setLastError(errorMsg);
+            throw new RuntimeException("Fallo conexión stdio: " + errorMsg);
         }
         return server;
     }
@@ -231,6 +238,7 @@ public class McpServerService {
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
                 log.info("HTTP connection successful to {}", server.getUrl());
                 server.setStatus("CONNECTED");
+                server.setLastError(null);
             } else if (response.statusCode() == 404 || response.statusCode() == 400) {
                 // Si /health no existe, intentar la raíz
                 log.info("Health endpoint not found, trying root endpoint for {}", server.getUrl());
@@ -245,17 +253,24 @@ public class McpServerService {
                 if (rootResponse.statusCode() >= 200 && rootResponse.statusCode() < 300) {
                     log.info("HTTP connection successful to root endpoint {}", server.getUrl());
                     server.setStatus("CONNECTED");
+                    server.setLastError(null);
                 } else {
+                    String errorMsg = String.format("HTTP %d from root endpoint", rootResponse.statusCode());
                     log.warn("HTTP connection returned status {} for {}", rootResponse.statusCode(), server.getUrl());
                     server.setStatus("ERROR");
+                    server.setLastError(errorMsg);
                 }
             } else {
+                String errorMsg = String.format("HTTP %d from health endpoint", response.statusCode());
                 log.warn("HTTP connection returned status {} for {}", response.statusCode(), server.getUrl());
                 server.setStatus("ERROR");
+                server.setLastError(errorMsg);
             }
         } catch (Exception e) {
-            log.error("HTTP connection error to {}: {}", server.getName(), e.getMessage());
+            String errorMsg = e.getClass().getSimpleName() + ": " + (e.getMessage() != null ? e.getMessage() : "Connection failed");
+            log.error("HTTP connection error to {}: {}", server.getName(), errorMsg, e);
             server.setStatus("ERROR");
+            server.setLastError(errorMsg);
         }
 
         server.setLastConnected(System.currentTimeMillis());
