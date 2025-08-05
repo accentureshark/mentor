@@ -31,19 +31,22 @@ public class ChatService {
     // Optional dependencies for simplified implementation
     private final McpToolOrchestrator mcpToolOrchestrator;
     private final LlmServiceEnhanced enhancedLlmService;
+    private final TranslationService translationService;
     private final boolean useSimplifiedImplementation;
 
     public ChatService(McpServerService mcpServerService, 
                       LlmService llmService,
                       Optional<McpToolOrchestrator> mcpToolOrchestrator,
                       Optional<LlmServiceEnhanced> enhancedLlmService,
-                      McpToolService mcpToolService) {
+                      McpToolService mcpToolService,
+                      TranslationService translationService) {
         this.mcpServerService = mcpServerService;
         this.llmService = llmService;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
         this.mcpToolService = mcpToolService;
+        this.translationService = translationService;
 
         // Use simplified implementation if available
         this.mcpToolOrchestrator = mcpToolOrchestrator.orElse(null);
@@ -51,9 +54,9 @@ public class ChatService {
         this.useSimplifiedImplementation = this.mcpToolOrchestrator != null && this.enhancedLlmService != null;
         
         if (useSimplifiedImplementation) {
-            log.info("Using simplified langchain4j-based implementation");
+            log.info("Using simplified langchain4j-based implementation with multilingual support");
         } else {
-            log.info("Using original implementation");
+            log.info("Using original implementation with multilingual support");
         }
     }
 
@@ -94,12 +97,12 @@ public class ChatService {
         // Validate server exists and is connected
         Optional<McpServer> serverOpt = mcpServerService.getServer(request.getServerId());
         if (serverOpt.isEmpty()) {
-            return createErrorMessage(request, "Server not found: " + request.getServerId());
+            return createErrorMessage(request, "Servidor no encontrado: " + request.getServerId());
         }
 
         McpServer server = serverOpt.get();
         if (!"CONNECTED".equals(server.getStatus())) {
-            return createErrorMessage(request, "Server is not connected: " + server.getName());
+            return createErrorMessage(request, "El servidor no está conectado: " + server.getName());
         }
 
         // Create and store user message
@@ -114,19 +117,52 @@ public class ChatService {
         addMessageToConversation(conversationId, userMessage);
 
         try {
-            // Use the MCP tool orchestrator to get context from the server
-            String mcpContext = mcpToolOrchestrator.executeTool(server, request.getMessage());
+            // Get multilingual versions of the question
+            TranslationService.TranslationResult translations = translationService.getMultilingualVersions(request.getMessage());
+            log.info("Querying MCP server with multilingual questions - Original: {}, English: {}, Spanish: {}", 
+                    translations.getOriginal(), translations.getEnglish(), translations.getSpanish());
             
-            // Try to use the enhanced LLM service to generate response with conversation memory
-            String assistantContent = enhancedLlmService.generateWithMemory(conversationId, request.getMessage(), mcpContext);
+            // Query MCP server with both English and Spanish versions to get comprehensive context
+            StringBuilder combinedContext = new StringBuilder();
             
-            // Check if LLM service returned an error and fall back to MCP context
+            // Query with English version
+            try {
+                String englishContext = mcpToolOrchestrator.executeTool(server, translations.getEnglish());
+                if (englishContext != null && !englishContext.trim().isEmpty()) {
+                    combinedContext.append("Contexto en inglés:\n").append(englishContext).append("\n\n");
+                }
+            } catch (Exception e) {
+                log.warn("Failed to query server with English question: {}", e.getMessage());
+            }
+            
+            // Query with Spanish version if different from English
+            if (!translations.getSpanish().equals(translations.getEnglish())) {
+                try {
+                    String spanishContext = mcpToolOrchestrator.executeTool(server, translations.getSpanish());
+                    if (spanishContext != null && !spanishContext.trim().isEmpty()) {
+                        combinedContext.append("Contexto en español:\n").append(spanishContext).append("\n\n");
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to query server with Spanish question: {}", e.getMessage());
+                }
+            }
+            
+            String finalContext = combinedContext.toString();
+            if (finalContext.trim().isEmpty()) {
+                // Fallback to original question if translations failed
+                finalContext = mcpToolOrchestrator.executeTool(server, request.getMessage());
+            }
+            
+            // Generate response in Spanish using the enhanced LLM service
+            String assistantContent = enhancedLlmService.generateWithMemory(conversationId, translations.getOriginal(), finalContext);
+            
+            // Check if LLM service returned an error and fall back to formatted MCP context
             if (assistantContent != null && assistantContent.startsWith("Error generating response:")) {
-                log.warn("LLM service returned error for conversation {}, falling back to MCP context: {}", 
+                log.warn("El servicio LLM devolvió error para la conversación {}, usando contexto MCP: {}", 
                         conversationId, assistantContent);
-                assistantContent = formatMcpResponse(mcpContext, request.getMessage(), server.getName());
+                assistantContent = formatMcpResponse(finalContext, request.getMessage(), server.getName());
             } else {
-                log.info("Successfully generated LLM response for conversation {}", conversationId);
+                log.info("Respuesta LLM generada exitosamente para la conversación {}", conversationId);
             }
             
             // Create assistant response message
@@ -140,14 +176,14 @@ public class ChatService {
 
             addMessageToConversation(conversationId, assistantMessage);
             
-            log.info("Successfully processed message using simplified implementation for conversation {} using server {}", 
+            log.info("Mensaje procesado exitosamente usando implementación simplificada para conversación {} usando servidor {}", 
                     conversationId, server.getName());
             
             return assistantMessage;
 
         } catch (Exception e) {
-            log.error("Error processing message in simplified implementation for conversation {}: {}", conversationId, e.getMessage(), e);
-            return createErrorMessage(request, "Error processing message: " + e.getMessage());
+            log.error("Error procesando mensaje en implementación simplificada para conversación {}: {}", conversationId, e.getMessage(), e);
+            return createErrorMessage(request, "Error procesando mensaje: " + e.getMessage());
         }
     }
 
@@ -163,7 +199,7 @@ public class ChatService {
 
     private String formatMcpResponse(String mcpContext, String userMessage, String serverName) {
         if (mcpContext == null || mcpContext.trim().isEmpty()) {
-            return String.format("✅ Successfully contacted %s, but no specific data was returned for: \"%s\"", 
+            return String.format("✅ Se contactó exitosamente con %s, pero no se devolvieron datos específicos para: \"%s\"", 
                     serverName, userMessage);
         }
         
@@ -172,40 +208,40 @@ public class ChatService {
             JsonNode jsonNode = objectMapper.readTree(mcpContext);
             if (jsonNode.isObject()) {
                 StringBuilder formattedResponse = new StringBuilder();
-                formattedResponse.append(String.format("✅ Response from %s:\n\n", serverName));
+                formattedResponse.append(String.format("✅ Respuesta de %s:\n\n", serverName));
                 
                 if (jsonNode.has("movies")) {
                     JsonNode movies = jsonNode.get("movies");
-                    formattedResponse.append("🎬 Movies found:\n");
+                    formattedResponse.append("🎬 Películas encontradas:\n");
                     for (JsonNode movie : movies) {
                         formattedResponse.append(String.format("• %s (%s) - %s\n", 
-                                movie.path("title").asText("Unknown Title"),
-                                movie.path("year").asText("Unknown Year"),
-                                movie.path("genre").asText("Unknown Genre")));
+                                movie.path("title").asText("Título Desconocido"),
+                                movie.path("year").asText("Año Desconocido"),
+                                movie.path("genre").asText("Género Desconocido")));
                     }
                 } else if (jsonNode.has("movie")) {
                     JsonNode movie = jsonNode.get("movie");
-                    formattedResponse.append("🎬 Movie Details:\n");
-                    formattedResponse.append(String.format("Title: %s\n", movie.path("title").asText("Unknown")));
-                    formattedResponse.append(String.format("Year: %s\n", movie.path("year").asText("Unknown")));
-                    formattedResponse.append(String.format("Genre: %s\n", movie.path("genre").asText("Unknown")));
-                    formattedResponse.append(String.format("Director: %s\n", movie.path("director").asText("Unknown")));
-                    formattedResponse.append(String.format("Description: %s\n", movie.path("description").asText("No description available")));
+                    formattedResponse.append("🎬 Detalles de la Película:\n");
+                    formattedResponse.append(String.format("Título: %s\n", movie.path("title").asText("Desconocido")));
+                    formattedResponse.append(String.format("Año: %s\n", movie.path("year").asText("Desconocido")));
+                    formattedResponse.append(String.format("Género: %s\n", movie.path("genre").asText("Desconocido")));
+                    formattedResponse.append(String.format("Director: %s\n", movie.path("director").asText("Desconocido")));
+                    formattedResponse.append(String.format("Descripción: %s\n", movie.path("description").asText("No hay descripción disponible")));
                 } else {
                     // Generic JSON formatting
-                    formattedResponse.append("📋 Raw response:\n");
+                    formattedResponse.append("📋 Respuesta completa:\n");
                     formattedResponse.append(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(jsonNode));
                 }
                 
-                formattedResponse.append(String.format("\n\n💡 Note: This is direct output from %s. LLM service is currently unavailable for enhanced responses.", serverName));
+                formattedResponse.append(String.format("\n\n💡 Nota: Esta es la salida directa de %s. El servicio LLM no está disponible actualmente para respuestas mejoradas.", serverName));
                 return formattedResponse.toString();
             }
         } catch (Exception e) {
-            log.debug("Could not parse MCP response as JSON: {}", e.getMessage());
+            log.debug("No se pudo analizar la respuesta MCP como JSON: {}", e.getMessage());
         }
         
         // Return raw response with formatting
-        return String.format("✅ Response from %s:\n\n%s\n\n💡 Note: LLM service is currently unavailable for enhanced responses.", 
+        return String.format("✅ Respuesta de %s:\n\n%s\n\n💡 Nota: El servicio LLM no está disponible actualmente para respuestas mejoradas.", 
                 serverName, mcpContext);
     }
 
