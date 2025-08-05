@@ -102,7 +102,9 @@ public class ChatService {
 
         McpServer server = serverOpt.get();
         if (!"CONNECTED".equals(server.getStatus())) {
-            return createErrorMessage(request, "El servidor no está conectado: " + server.getName());
+            String errorDetails = server.getLastError() != null ? " (Error: " + server.getLastError() + ")" : "";
+            String errorMessage = "El servidor no está conectado: " + server.getName() + errorDetails + ". Use el botón de conexión en la lista de servidores para intentar conectar.";
+            return createErrorMessage(request, errorMessage);
         }
 
         // Create and store user message
@@ -258,7 +260,8 @@ public class ChatService {
 
         McpServer server = serverOpt.get();
         if (!"CONNECTED".equals(server.getStatus())) {
-            throw new IllegalStateException("Server is not connected: " + server.getName());
+            String errorDetails = server.getLastError() != null ? " (Error: " + server.getLastError() + ")" : "";
+            throw new IllegalStateException("Server is not connected: " + server.getName() + errorDetails + ". Use the connection button in the server list to connect.");
         }
 
         ChatMessage userMessage = ChatMessage.builder()
