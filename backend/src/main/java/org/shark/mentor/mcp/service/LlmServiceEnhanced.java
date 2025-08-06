@@ -114,41 +114,7 @@ public class LlmServiceEnhanced implements LlmService {
         prompt.append(context);
         prompt.append("\n\nINSTRUCCIONES ESPECÍFICAS DE FORMATO:\n");
         
-        // Try to detect the type of content to give specific formatting instructions
-        if (context.toLowerCase().contains("movie") || context.toLowerCase().contains("película") || 
-            context.toLowerCase().contains("title") || context.toLowerCase().contains("rating")) {
-            prompt.append("""
-                Para contenido de películas, usa este formato:
-                🎬 **Películas encontradas para "[consulta]":**
-                
-                **N. [Título]** (📅 [Año])
-                ⭐ **Calificación:** [rating]/10
-                🎭 **Género:** [género]
-                📝 **Sinopsis:** [descripción]
-                
-                Repite para cada película encontrada.
-                """);
-        } else if (context.toLowerCase().contains("file") || context.toLowerCase().contains("directory")) {
-            prompt.append("""
-                Para contenido de archivos, usa este formato:
-                📁 **Archivos encontrados:**
-                
-                📄 **[nombre]**
-                📏 Tamaño: [tamaño]
-                📅 Modificado: [fecha]
-                """);
-        } else if (context.toLowerCase().contains("repository") || context.toLowerCase().contains("github") || 
-                  context.toLowerCase().contains("issue")) {
-            prompt.append("""
-                Para contenido de GitHub, usa este formato:
-                💻 **Repositorios/Issues encontrados:**
-                
-                🔗 **[nombre]**
-                📝 [descripción]
-                💻 Lenguaje: [lenguaje]
-                📊 Estado: [estado]
-                """);
-        } else {
+
             prompt.append("""
                 Organiza la información de forma clara con:
                 - Títulos descriptivos con emojis apropiados
@@ -156,7 +122,7 @@ public class LlmServiceEnhanced implements LlmService {
                 - Uso de markdown para dar formato
                 - Separación clara entre elementos
                 """);
-        }
+
         
         prompt.append("\nTermina siempre con: 💡 *Información proporcionada por [nombre del servidor]*");
         return prompt.toString();

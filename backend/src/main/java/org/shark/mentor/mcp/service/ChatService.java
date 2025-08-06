@@ -183,118 +183,17 @@ public class ChatService {
         StringBuilder formattedResponse = new StringBuilder();
         formattedResponse.append(String.format("✅ **Respuesta de %s**\n\n", serverName));
         
-        if (jsonNode.has("movies") || jsonNode.isArray()) {
-            formattedResponse.append(formatMovieResponse(jsonNode, userMessage));
-        } else if (jsonNode.has("movie")) {
-            formattedResponse.append(formatSingleMovieResponse(jsonNode.get("movie")));
-        } else if (jsonNode.has("files") || (jsonNode.has("result") && jsonNode.get("result").has("files"))) {
-            formattedResponse.append(formatFileResponse(jsonNode));
-        } else if (jsonNode.has("repositories") || jsonNode.has("issues")) {
-            formattedResponse.append(formatGitHubResponse(jsonNode));
-        } else {
-            // Generic structured response
-            formattedResponse.append(formatGenericStructuredResponse(jsonNode));
-        }
+
+         formattedResponse.append(formatGenericStructuredResponse(jsonNode));
+
         
         formattedResponse.append(String.format("\n\n💡 *Información proporcionada por %s*", serverName));
         return formattedResponse.toString();
     }
 
-    private String formatMovieResponse(JsonNode jsonNode, String userMessage) {
-        StringBuilder response = new StringBuilder();
-        JsonNode movies = jsonNode.has("movies") ? jsonNode.get("movies") : jsonNode;
-        
-        if (movies.isArray() && movies.size() > 0) {
-            response.append(String.format("🎬 **Películas encontradas para \"%s\":**\n\n", userMessage));
-            
-            int count = 1;
-            for (JsonNode movie : movies) {
-                response.append(String.format("**%d. %s**", count++, 
-                    movie.path("title").asText("Título Desconocido")));
-                
-                if (movie.has("year") || movie.has("release_date")) {
-                    String year = movie.has("year") ? movie.get("year").asText() : 
-                                 movie.path("release_date").asText().substring(0, 4);
-                    response.append(String.format(" (📅 %s)", year));
-                }
-                
-                response.append("\n");
-                
-                if (movie.has("rating") || movie.has("vote_average")) {
-                    String rating = movie.has("rating") ? movie.get("rating").asText() :
-                                   movie.get("vote_average").asText();
-                    response.append(String.format("⭐ **Calificación:** %s/10\n", rating));
-                }
-                
-                if (movie.has("genre") || movie.has("genres")) {
-                    String genre = movie.has("genre") ? movie.get("genre").asText() :
-                                  movie.path("genres").asText("N/A");
-                    response.append(String.format("🎭 **Género:** %s\n", genre));
-                }
-                
-                if (movie.has("description") || movie.has("overview")) {
-                    String description = movie.has("description") ? movie.get("description").asText() :
-                                        movie.get("overview").asText();
-                    if (!description.isEmpty() && !description.equals("null")) {
-                        response.append(String.format("📝 **Sinopsis:** %s\n", description));
-                    }
-                }
-                
-                if (movie.has("director")) {
-                    response.append(String.format("🎬 **Director:** %s\n", movie.get("director").asText()));
-                }
-                
-                response.append("\n");
-            }
-        } else {
-            response.append("🎬 No se encontraron películas que coincidan con la búsqueda.\n");
-        }
-        
-        return response.toString();
-    }
 
-    private String formatSingleMovieResponse(JsonNode movie) {
-        StringBuilder response = new StringBuilder();
-        response.append("🎬 **Detalles de la Película**\n\n");
-        
-        response.append(String.format("**📋 Título:** %s\n", movie.path("title").asText("Desconocido")));
-        
-        if (movie.has("year") || movie.has("release_date")) {
-            String year = movie.has("year") ? movie.get("year").asText() : 
-                         movie.path("release_date").asText().substring(0, 4);
-            response.append(String.format("**📅 Año:** %s\n", year));
-        }
-        
-        if (movie.has("rating") || movie.has("vote_average")) {
-            String rating = movie.has("rating") ? movie.get("rating").asText() :
-                           movie.get("vote_average").asText();
-            response.append(String.format("**⭐ Calificación:** %s/10\n", rating));
-        }
-        
-        if (movie.has("genre") || movie.has("genres")) {
-            String genre = movie.has("genre") ? movie.get("genre").asText() :
-                          movie.path("genres").asText("N/A");
-            response.append(String.format("**🎭 Género:** %s\n", genre));
-        }
-        
-        if (movie.has("director")) {
-            response.append(String.format("**🎬 Director:** %s\n", movie.get("director").asText()));
-        }
-        
-        if (movie.has("cast")) {
-            response.append(String.format("**👥 Reparto:** %s\n", movie.get("cast").asText()));
-        }
-        
-        if (movie.has("description") || movie.has("overview")) {
-            String description = movie.has("description") ? movie.get("description").asText() :
-                                movie.get("overview").asText();
-            if (!description.isEmpty() && !description.equals("null")) {
-                response.append(String.format("**📝 Sinopsis:** %s\n", description));
-            }
-        }
-        
-        return response.toString();
-    }
+
+
 
     private String formatFileResponse(JsonNode jsonNode) {
         StringBuilder response = new StringBuilder();
