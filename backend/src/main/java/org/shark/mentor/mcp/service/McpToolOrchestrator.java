@@ -12,6 +12,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -245,7 +246,7 @@ public class McpToolOrchestrator {
     private String executeToolViaStdio(McpServer server, ToolSelection selection) throws Exception {
         OutputStream stdin = mcpServerService.getStdioInput(server.getId());
         InputStream stdout = mcpServerService.getStdioOutput(server.getId());
-        
+
         if (stdin == null || stdout == null) {
             throw new IllegalStateException("STDIO streams not available for server: " + server.getId());
         }
@@ -263,11 +264,10 @@ public class McpToolOrchestrator {
 
         String json = objectMapper.writeValueAsString(toolCall);
         log.debug("Sending STDIO tool call: {}", json);
-        
-        stdin.write((json + "\n").getBytes());
-        stdin.flush();
 
-        String response = new BufferedReader(new InputStreamReader(stdout)).readLine();
+        sendJsonRpcMessage(stdin, toolCall);
+
+        String response = readJsonRpcResponse(stdout);
         return parseToolResponse(response);
     }
 
@@ -346,6 +346,40 @@ public class McpToolOrchestrator {
         return url.substring(0, url.indexOf("://"));
     }
 
+    private void sendJsonRpcMessage(OutputStream stdin, Map<String, Object> message) throws IOException {
+        String json = objectMapper.writeValueAsString(message);
+        byte[] jsonBytes = json.getBytes(StandardCharsets.UTF_8);
+        String header = "Content-Length: " + jsonBytes.length + "\r\n\r\n";
+        stdin.write(header.getBytes(StandardCharsets.UTF_8));
+        stdin.write(jsonBytes);
+        stdin.flush();
+    }
+
+    private String readJsonRpcResponse(InputStream stdout) throws IOException {
+        BufferedReader reader = new BufferedReader(new InputStreamReader(stdout, StandardCharsets.UTF_8));
+        int contentLength = -1;
+        String line;
+        while ((line = reader.readLine()) != null) {
+            if (line.isEmpty()) {
+                break;
+            }
+            if (line.toLowerCase().startsWith("content-length:")) {
+                contentLength = Integer.parseInt(line.substring("content-length:".length()).trim());
+            }
+        }
+        if (contentLength < 0) {
+            return null;
+        }
+        char[] buf = new char[contentLength];
+        int read = 0;
+        while (read < contentLength) {
+            int n = reader.read(buf, read, contentLength - read);
+            if (n == -1) break;
+            read += n;
+        }
+        return new String(buf, 0, read);
+    }
+
     private List<Map<String, Object>> getToolsViaStdio(McpServer server) throws Exception {
         OutputStream stdin = mcpServerService.getStdioInput(server.getId());
         InputStream stdout = mcpServerService.getStdioOutput(server.getId());
@@ -355,8 +389,6 @@ public class McpToolOrchestrator {
             return Collections.emptyList();
         }
 
-        BufferedReader reader = new BufferedReader(new InputStreamReader(stdout));
-
         // Send initialize only once per server
         if (!initializedServers.contains(server.getId())) {
             Map<String, Object> initRequest = Map.of(
@@ -365,10 +397,8 @@ public class McpToolOrchestrator {
                     "method", "initialize",
                     "params", Collections.emptyMap()
             );
-            String initJson = objectMapper.writeValueAsString(initRequest);
-            stdin.write((initJson + "\n").getBytes());
-            stdin.flush();
-            reader.readLine(); // ignore initialize response
+            sendJsonRpcMessage(stdin, initRequest);
+            readJsonRpcResponse(stdout); // ignore initialize response
             initializedServers.add(server.getId());
         }
 
@@ -379,11 +409,9 @@ public class McpToolOrchestrator {
                 "params", Collections.emptyMap()
         );
 
-        String json = objectMapper.writeValueAsString(request);
-        stdin.write((json + "\n").getBytes());
-        stdin.flush();
+        sendJsonRpcMessage(stdin, request);
 
-        String response = reader.readLine();
+        String response = readJsonRpcResponse(stdout);
         if (response != null && !response.isBlank()) {
             JsonNode root = objectMapper.readTree(response);
             if (root.has("result") && root.get("result").has("tools")) {
