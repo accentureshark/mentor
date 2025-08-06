@@ -202,8 +202,8 @@ public class McpToolOrchestrator {
      */
     private String extractSearchTerms(String message) {
         // Remove common stop words and extract meaningful terms
-        String cleaned = message.replaceAll("(?i)\\b(search|find|look|for|get|show|list|me|the|a|an)\\b", "").trim();
-        return cleaned.isEmpty() ? message : cleaned;
+        //String cleaned = message.replaceAll("(?i)\\b(search|find|look|for|get|show|list|me|the|a|an)\\b", "").trim();
+        return message;
     }
 
     /**
