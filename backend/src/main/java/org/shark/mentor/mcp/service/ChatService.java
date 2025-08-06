@@ -94,12 +94,11 @@ public class ChatService {
             conversationId = "default";
         }
 
-        // Validate server exists and is connected
+        // Validar y obtener el servidor
         Optional<McpServer> serverOpt = mcpServerService.getServer(request.getServerId());
         if (serverOpt.isEmpty()) {
             return createErrorMessage(request, "Servidor no encontrado: " + request.getServerId());
         }
-
         McpServer server = serverOpt.get();
         if (!"CONNECTED".equals(server.getStatus())) {
             String errorDetails = server.getLastError() != null ? " (Error: " + server.getLastError() + ")" : "";
@@ -107,7 +106,7 @@ public class ChatService {
             return createErrorMessage(request, errorMessage);
         }
 
-        // Create and store user message
+        // Crear y guardar el mensaje del usuario
         ChatMessage userMessage = ChatMessage.builder()
                 .id(UUID.randomUUID().toString())
                 .role("USER")
@@ -115,59 +114,60 @@ public class ChatService {
                 .timestamp(System.currentTimeMillis())
                 .serverId(request.getServerId())
                 .build();
-
         addMessageToConversation(conversationId, userMessage);
 
         try {
-            // Get multilingual versions of the question
-            TranslationService.TranslationResult translations = translationService.getMultilingualVersions(request.getMessage());
-            log.info("Querying MCP server with multilingual questions - Original: {}, English: {}, Spanish: {}", 
-                    translations.getOriginal(), translations.getEnglish(), translations.getSpanish());
-            
-            // Query MCP server with both English and Spanish versions to get comprehensive context
+            String originalQuery = request.getMessage();
+            String originalContext = mcpToolOrchestrator.executeTool(server, originalQuery);
             StringBuilder combinedContext = new StringBuilder();
-            
-            // Query with English version
-            try {
-                String englishContext = mcpToolOrchestrator.executeTool(server, translations.getEnglish());
-                if (englishContext != null && !englishContext.trim().isEmpty()) {
-                    combinedContext.append("Contexto en inglés:\n").append(englishContext).append("\n\n");
-                }
-            } catch (Exception e) {
-                log.warn("Failed to query server with English question: {}", e.getMessage());
-            }
-            
-            // Query with Spanish version if different from English
-            if (!translations.getSpanish().equals(translations.getEnglish())) {
-                try {
-                    String spanishContext = mcpToolOrchestrator.executeTool(server, translations.getSpanish());
-                    if (spanishContext != null && !spanishContext.trim().isEmpty()) {
-                        combinedContext.append("Contexto en español:\n").append(spanishContext).append("\n\n");
+
+            if (originalContext == null || originalContext.trim().isEmpty()) {
+                log.info("No se encontraron resultados con la consulta original. Intentando con traducciones.");
+                TranslationService.TranslationResult translations = translationService.getMultilingualVersions(request.getMessage());
+
+                String englishQuery = originalQuery.equalsIgnoreCase(translations.getEnglish()) ? originalQuery : translations.getEnglish();
+                if (!englishQuery.equals(originalQuery)) {
+                    try {
+                        String englishContext = mcpToolOrchestrator.executeTool(server, englishQuery);
+                        if (englishContext != null && !englishContext.trim().isEmpty()) {
+                            combinedContext.append("Contexto en inglés:\n").append(englishContext).append("\n\n");
+                        }
+                    } catch (Exception e) {
+                        log.warn("Error en consulta en inglés: {}", e.getMessage());
                     }
-                } catch (Exception e) {
-                    log.warn("Failed to query server with Spanish question: {}", e.getMessage());
                 }
+
+                String spanishQuery = translations.getSpanish();
+                if (!spanishQuery.equals(originalQuery) && !spanishQuery.equals(englishQuery)) {
+                    try {
+                        String spanishContext = mcpToolOrchestrator.executeTool(server, spanishQuery);
+                        if (spanishContext != null && !spanishContext.trim().isEmpty()) {
+                            combinedContext.append("Contexto en español:\n").append(spanishContext).append("\n\n");
+                        }
+                    } catch (Exception e) {
+                        log.warn("Error en consulta en español: {}", e.getMessage());
+                    }
+                }
+            } else {
+                combinedContext.append(originalContext);
+                log.info("Se encontraron resultados con la consulta original. No es necesario traducir.");
             }
-            
+
             String finalContext = combinedContext.toString();
             if (finalContext.trim().isEmpty()) {
-                // Fallback to original question if translations failed
-                finalContext = mcpToolOrchestrator.executeTool(server, request.getMessage());
+                finalContext = "No se encontraron resultados relevantes para la consulta.";
             }
-            
-            // Generate response in Spanish using the enhanced LLM service
+
+            TranslationService.TranslationResult translations = translationService.getMultilingualVersions(request.getMessage());
             String assistantContent = enhancedLlmService.generateWithMemory(conversationId, translations.getOriginal(), finalContext);
-            
-            // Check if LLM service returned an error and fall back to formatted MCP context
+
             if (assistantContent != null && assistantContent.startsWith("Error generating response:")) {
-                log.warn("El servicio LLM devolvió error para la conversación {}, usando contexto MCP: {}", 
-                        conversationId, assistantContent);
+                log.warn("El servicio LLM devolvió error para la conversación {}, usando contexto MCP: {}", conversationId, assistantContent);
                 assistantContent = formatMcpResponse(finalContext, request.getMessage(), server.getName());
             } else {
                 log.info("Respuesta LLM generada exitosamente para la conversación {}", conversationId);
             }
-            
-            // Create assistant response message
+
             ChatMessage assistantMessage = ChatMessage.builder()
                     .id(UUID.randomUUID().toString())
                     .role("ASSISTANT")
@@ -177,10 +177,9 @@ public class ChatService {
                     .build();
 
             addMessageToConversation(conversationId, assistantMessage);
-            
-            log.info("Mensaje procesado exitosamente usando implementación simplificada para conversación {} usando servidor {}", 
-                    conversationId, server.getName());
-            
+
+            log.info("Mensaje procesado exitosamente para conversación {} usando servidor {}", conversationId, server.getName());
+
             return assistantMessage;
 
         } catch (Exception e) {
@@ -188,7 +187,6 @@ public class ChatService {
             return createErrorMessage(request, "Error procesando mensaje: " + e.getMessage());
         }
     }
-
     private ChatMessage createErrorMessage(McpRequest request, String errorMessage) {
         return ChatMessage.builder()
                 .id(UUID.randomUUID().toString())

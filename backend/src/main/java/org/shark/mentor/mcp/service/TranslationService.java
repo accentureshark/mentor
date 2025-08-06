@@ -105,8 +105,9 @@ public class TranslationService {
         
         // Common English words
         List<String> englishIndicators = Arrays.asList(
-            "the", "and", "is", "are", "was", "were", "have", "has", "had", 
-            "do", "does", "did", "will", "would", "can", "could", "should",
+            //"the",
+                "and", "is", "are", "was", "were", "have", "has", "had",
+             "do", "does", "did", "will", "would", "can", "could", "should",
             "what", "where", "when", "why", "how", "who", "which",
             "get", "show", "find", "search", "list", "tell", "give"
         );
