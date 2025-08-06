@@ -11,6 +11,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
 
@@ -180,9 +181,34 @@ public class McpToolService {
         );
         String json = objectMapper.writeValueAsString(toolCall);
         log.info("Enviando llamada de herramienta por stdio: {}", json);
-        stdin.write((json + "\n").getBytes());
+        byte[] jsonBytes = json.getBytes(StandardCharsets.UTF_8);
+        String header = "Content-Length: " + jsonBytes.length + "\r\n\r\n";
+        stdin.write(header.getBytes(StandardCharsets.UTF_8));
+        stdin.write(jsonBytes);
         stdin.flush();
-        return new BufferedReader(new InputStreamReader(stdout)).readLine();
+
+        BufferedReader reader = new BufferedReader(new InputStreamReader(stdout, StandardCharsets.UTF_8));
+        int contentLength = -1;
+        String line;
+        while ((line = reader.readLine()) != null) {
+            if (line.isEmpty()) {
+                break;
+            }
+            if (line.toLowerCase().startsWith("content-length:")) {
+                contentLength = Integer.parseInt(line.substring("content-length:".length()).trim());
+            }
+        }
+        if (contentLength < 0) {
+            return null;
+        }
+        char[] buf = new char[contentLength];
+        int read = 0;
+        while (read < contentLength) {
+            int n = reader.read(buf, read, contentLength - read);
+            if (n == -1) break;
+            read += n;
+        }
+        return new String(buf, 0, read);
     }
 }
 
