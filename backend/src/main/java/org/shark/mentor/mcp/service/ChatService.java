@@ -166,9 +166,7 @@ public class ChatService {
 
     private ChatMessage createInitialConnectionMessage(McpRequest request, McpServer server) {
         StringBuilder messageContent = new StringBuilder();
-        messageContent.append("¡Entendido! Estoy listo para responder preguntas utilizando únicamente la información proporcionada en el contexto del servidor MCP. ");
-        messageContent.append("Mantendré el formato especificado y mencionaré el servidor al final de cada respuesta.\n\n");
-        
+
         // Obtener herramientas disponibles
         List<Map<String, Object>> tools = mcpToolService.getTools(server);
         
@@ -271,38 +269,7 @@ public class ChatService {
         return response.toString();
     }
 
-    private String formatGitHubResponse(JsonNode jsonNode) {
-        StringBuilder response = new StringBuilder();
-        
-        if (jsonNode.has("repositories")) {
-            response.append("💻 **Repositorios encontrados:**\n\n");
-            JsonNode repos = jsonNode.get("repositories");
-            for (JsonNode repo : repos) {
-                response.append(String.format("🔗 **%s**\n", repo.path("name").asText()));
-                if (repo.has("description")) {
-                    response.append(String.format("📝 %s\n", repo.get("description").asText()));
-                }
-                if (repo.has("language")) {
-                    response.append(String.format("💻 Lenguaje: %s\n", repo.get("language").asText()));
-                }
-                response.append("\n");
-            }
-        }
-        
-        if (jsonNode.has("issues")) {
-            response.append("🐛 **Issues encontrados:**\n\n");
-            JsonNode issues = jsonNode.get("issues");
-            for (JsonNode issue : issues) {
-                response.append(String.format("🎯 **%s**\n", issue.path("title").asText()));
-                if (issue.has("state")) {
-                    response.append(String.format("📊 Estado: %s\n", issue.get("state").asText()));
-                }
-                response.append("\n");
-            }
-        }
-        
-        return response.toString();
-    }
+
 
     private String formatGenericStructuredResponse(JsonNode jsonNode) {
         StringBuilder response = new StringBuilder();
