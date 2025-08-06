@@ -199,12 +199,17 @@ public class McpServerService {
             // Guarda los streams para comunicación posterior
             stdioProcesses.put(server.getId(), process);
             stdioInputs.put(server.getId(), process.getOutputStream());
-            stdioOutputs.put(server.getId(), process.getInputStream());
+            InputStream stdout = process.getInputStream();
+            stdioOutputs.put(server.getId(), stdout);
 
-            // Opcional: lee la primera línea para verificar que el server responde
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            String firstLine = reader.readLine();
-            log.info("Primer output stdio: {}", firstLine);
+            // Opcional: lee la primera línea si el server produce salida inicial
+            if (stdout.available() > 0) {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(stdout));
+                String firstLine = reader.readLine();
+                log.info("Primer output stdio: {}", firstLine);
+            } else {
+                log.debug("STDIO server started without initial output");
+            }
 
             server.setStatus("CONNECTED");
             server.setLastConnected(System.currentTimeMillis());
