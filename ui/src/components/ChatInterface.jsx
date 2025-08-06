@@ -10,38 +10,30 @@ import { chatService } from '../services/chatService';
 import { getServerTools } from '../services/toolService';
 import '../styles/chat-interface.css';
 
-const normalizeBaseUrl = (url) => {
-  const trimmed = url.replace(/\/+$/, '');
-  return trimmed.endsWith('/api/mcp') ? trimmed : `${trimmed}/api/mcp`;
-};
-
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8083/api/mcp';
 
 export const ChatInterface = ({ selectedServer }) => {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const [conversationId] = useState('default');
   const [tools, setTools] = useState([]);
   const toast = useRef(null);
   const scrollPanelRef = useRef(null);
+
+  const conversationId = selectedServer ? `server-${selectedServer.id}` : 'default';
 
   const loadConversation = async () => {
     if (!selectedServer) return;
 
     try {
-      const newMessage = await chatService.sendMessage(
-          BACKEND_URL,
-          selectedServer.id,
-          inputMessage,
-          conversationId
-      );
-      setMessages(prev => [...prev, newMessage]);
+      const history = await chatService.getConversation(BACKEND_URL, conversationId);
+      setMessages(history);
     } catch (error) {
+      setMessages([]);
       toast.current?.show({
         severity: 'error',
         summary: 'Error',
-        detail: 'Failed to send message',
+        detail: 'Failed to load conversation',
         life: 3000,
       });
     }
@@ -54,8 +46,7 @@ export const ChatInterface = ({ selectedServer }) => {
       .then(setTools)
       .catch(() => setTools([]));
     loadConversation();
-    // eslint-disable-next-line
-  }, [selectedServer, conversationId]);
+  }, [selectedServer]);
 
   useEffect(() => {
     if (scrollPanelRef.current) {
