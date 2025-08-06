@@ -23,14 +23,96 @@ import java.util.*;
 public class McpToolService {
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final McpServerService mcpServerService;
 
-    public McpToolService() {
+    public McpToolService(McpServerService mcpServerService) {
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
+        this.mcpServerService = mcpServerService;
     }
 
     public List<Map<String, Object>> getTools(McpServer server) {
+        String protocol = extractProtocol(server.getUrl());
+        
+        if ("stdio".equalsIgnoreCase(protocol)) {
+            return getToolsViaStdio(server);
+        } else {
+            return getToolsViaHttp(server);
+        }
+    }
+    
+    private String extractProtocol(String url) {
+        if (url == null || !url.contains("://")) {
+            return "http";
+        }
+        return url.substring(0, url.indexOf("://"));
+    }
+    
+    private List<Map<String, Object>> getToolsViaStdio(McpServer server) {
+        try {
+            OutputStream stdin = mcpServerService.getStdioInput(server.getId());
+            InputStream stdout = mcpServerService.getStdioOutput(server.getId());
+            
+            if (stdin == null || stdout == null) {
+                log.warn("No stdio streams available for server: {}", server.getName());
+                return Collections.emptyList();
+            }
+            
+            Map<String, Object> request = new HashMap<>();
+            request.put("jsonrpc", "2.0");
+            request.put("id", UUID.randomUUID().toString());
+            request.put("method", "tools/list");
+            request.put("params", new HashMap<>());
+            
+            String jsonRequest = objectMapper.writeValueAsString(request);
+            log.debug("Sending tools/list request via stdio to {}: {}", server.getName(), jsonRequest);
+            
+            stdin.write((jsonRequest + "\n").getBytes(StandardCharsets.UTF_8));
+            stdin.flush();
+            
+            // Read response with timeout
+            BufferedReader reader = new BufferedReader(new InputStreamReader(stdout, StandardCharsets.UTF_8));
+            
+            // Try to read multiple lines until we get a valid JSON response
+            for (int i = 0; i < 10; i++) { // Max 10 attempts
+                String line = reader.readLine();
+                if (line == null) break;
+                
+                line = line.trim();
+                if (line.isEmpty()) continue;
+                
+                log.debug("Received stdio response line from {}: {}", server.getName(), line);
+                
+                try {
+                    JsonNode responseNode = objectMapper.readTree(line);
+                    if (responseNode.has("result")) {
+                        JsonNode result = responseNode.get("result");
+                        if (result.has("tools")) {
+                            JsonNode toolsNode = result.get("tools");
+                            if (toolsNode.isArray()) {
+                                List<Map<String, Object>> tools = objectMapper.convertValue(toolsNode, List.class);
+                                log.info("Retrieved {} tools via stdio from {}", tools.size(), server.getName());
+                                return tools;
+                            }
+                        }
+                    } else if (responseNode.has("error")) {
+                        log.warn("Error response from stdio tools/list on {}: {}", server.getName(), responseNode.get("error"));
+                        break;
+                    }
+                } catch (Exception e) {
+                    log.debug("Line is not valid JSON, continuing: {}", line);
+                }
+            }
+            
+        } catch (Exception e) {
+            log.warn("Failed to get tools via stdio from {}: {}", server.getName(), e.getMessage());
+        }
+        
+        return Collections.emptyList();
+    }
+    
+    private List<Map<String, Object>> getToolsViaHttp(McpServer server) {
         try {
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("jsonrpc", "2.0");
