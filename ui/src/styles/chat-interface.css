@@ -233,3 +233,87 @@
   margin: 0;
   max-width: 300px;
 }
+
+/* Markdown styling for assistant messages */
+.chat-message-text .markdown-content {
+  line-height: 1.6;
+}
+
+.chat-message-text .markdown-content h1,
+.chat-message-text .markdown-content h2,
+.chat-message-text .markdown-content h3,
+.chat-message-text .markdown-content h4,
+.chat-message-text .markdown-content h5,
+.chat-message-text .markdown-content h6 {
+  font-weight: 600;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  line-height: 1.3;
+}
+
+.chat-message-text .markdown-content p {
+  margin: 0.5em 0;
+}
+
+.chat-message-text .markdown-content ul,
+.chat-message-text .markdown-content ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+
+.chat-message-text .markdown-content li {
+  margin: 0.3em 0;
+}
+
+.chat-message-text .markdown-content strong {
+  font-weight: 600;
+}
+
+.chat-message-text .markdown-content em {
+  font-style: italic;
+}
+
+.chat-message-text .markdown-content code {
+  background-color: rgba(0, 0, 0, 0.1);
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+}
+
+.chat-message-text .markdown-content pre {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 1em;
+  border-radius: 5px;
+  overflow-x: auto;
+  margin: 0.5em 0;
+}
+
+.chat-message-text .markdown-content pre code {
+  background: none;
+  padding: 0;
+}
+
+/* Emoji support for better visual appeal */
+.chat-message-text .markdown-content .emoji {
+  font-size: 1.1em;
+  margin-right: 0.3em;
+}
+
+/* Server tools display */
+.chat-server-tools {
+  margin-top: 1rem;
+  padding: 0.5rem;
+  background: rgba(0, 123, 255, 0.1);
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.chat-server-tools ul {
+  margin: 0.5rem 0 0 0;
+  padding-left: 1.2rem;
+}
+
+.chat-server-tools li {
+  margin: 0.2rem 0;
+}

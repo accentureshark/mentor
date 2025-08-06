@@ -5,6 +5,7 @@ import { Button } from 'primereact/button';
 import { ScrollPanel } from 'primereact/scrollpanel';
 import { Toast } from 'primereact/toast';
 import { Avatar } from 'primereact/avatar';
+import ReactMarkdown from 'react-markdown';
 import { chatService } from '../services/chatService';
 import { getServerTools } from '../services/toolService';
 import '../styles/chat-interface.css';
@@ -155,7 +156,28 @@ export const ChatInterface = ({ selectedServer }) => {
             </span>
             </div>
             <div className="chat-message-text">
-              {message.content}
+              {isUser ? (
+                message.content
+              ) : (
+                <ReactMarkdown
+                  components={{
+                    // Customize how markdown elements are rendered
+                    p: ({children}) => <p style={{margin: '0.5em 0'}}>{children}</p>,
+                    h1: ({children}) => <h3 style={{color: '#2196f3', margin: '1em 0 0.5em 0'}}>{children}</h3>,
+                    h2: ({children}) => <h4 style={{color: '#2196f3', margin: '0.8em 0 0.4em 0'}}>{children}</h4>,
+                    h3: ({children}) => <h5 style={{color: '#2196f3', margin: '0.6em 0 0.3em 0'}}>{children}</h5>,
+                    ul: ({children}) => <ul style={{margin: '0.5em 0', paddingLeft: '1.5em'}}>{children}</ul>,
+                    ol: ({children}) => <ol style={{margin: '0.5em 0', paddingLeft: '1.5em'}}>{children}</ol>,
+                    li: ({children}) => <li style={{margin: '0.2em 0'}}>{children}</li>,
+                    strong: ({children}) => <strong style={{color: '#1976d2'}}>{children}</strong>,
+                    em: ({children}) => <em style={{color: '#666'}}>{children}</em>,
+                    code: ({children}) => <code style={{backgroundColor: '#f5f5f5', padding: '0.2em 0.4em', borderRadius: '3px'}}>{children}</code>,
+                    pre: ({children}) => <pre style={{backgroundColor: '#f5f5f5', padding: '1em', borderRadius: '5px', overflow: 'auto'}}>{children}</pre>
+                  }}
+                >
+                  {message.content}
+                </ReactMarkdown>
+              )}
             </div>
           </div>
         </div>
