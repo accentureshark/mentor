@@ -95,7 +95,7 @@ public class LlmServiceEnhanced implements LlmService {
         
         // Add context as system information if available
         if (context != null && !context.isBlank()) {
-            String contextPrompt = "Context from MCP server:\n" + context;
+            String contextPrompt = buildContextPrompt(context, question);
             messages.add(SystemMessage.from(contextPrompt));
         }
         
@@ -103,6 +103,63 @@ public class LlmServiceEnhanced implements LlmService {
         messages.add(UserMessage.from(question));
         
         return messages;
+    }
+
+    /**
+     * Build context prompt that instructs the LLM how to format the response
+     */
+    private String buildContextPrompt(String context, String question) {
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("CONTEXTO DEL SERVIDOR MCP:\n");
+        prompt.append(context);
+        prompt.append("\n\nINSTRUCCIONES ESPECÍFICAS DE FORMATO:\n");
+        
+        // Try to detect the type of content to give specific formatting instructions
+        if (context.toLowerCase().contains("movie") || context.toLowerCase().contains("película") || 
+            context.toLowerCase().contains("title") || context.toLowerCase().contains("rating")) {
+            prompt.append("""
+                Para contenido de películas, usa este formato:
+                🎬 **Películas encontradas para "[consulta]":**
+                
+                **N. [Título]** (📅 [Año])
+                ⭐ **Calificación:** [rating]/10
+                🎭 **Género:** [género]
+                📝 **Sinopsis:** [descripción]
+                
+                Repite para cada película encontrada.
+                """);
+        } else if (context.toLowerCase().contains("file") || context.toLowerCase().contains("directory")) {
+            prompt.append("""
+                Para contenido de archivos, usa este formato:
+                📁 **Archivos encontrados:**
+                
+                📄 **[nombre]**
+                📏 Tamaño: [tamaño]
+                📅 Modificado: [fecha]
+                """);
+        } else if (context.toLowerCase().contains("repository") || context.toLowerCase().contains("github") || 
+                  context.toLowerCase().contains("issue")) {
+            prompt.append("""
+                Para contenido de GitHub, usa este formato:
+                💻 **Repositorios/Issues encontrados:**
+                
+                🔗 **[nombre]**
+                📝 [descripción]
+                💻 Lenguaje: [lenguaje]
+                📊 Estado: [estado]
+                """);
+        } else {
+            prompt.append("""
+                Organiza la información de forma clara con:
+                - Títulos descriptivos con emojis apropiados
+                - Información estructurada en listas
+                - Uso de markdown para dar formato
+                - Separación clara entre elementos
+                """);
+        }
+        
+        prompt.append("\nTermina siempre con: 💡 *Información proporcionada por [nombre del servidor]*");
+        return prompt.toString();
     }
 
     /**
@@ -120,8 +177,23 @@ public class LlmServiceEnhanced implements LlmService {
             5. Cuando sea relevante, menciona qué servidor MCP proporcionó la información
             6. SIEMPRE responde en español, independientemente del idioma de la pregunta
             
+            FORMATO DE RESPUESTA:
+            - Usa títulos y subtítulos claros con emojis apropiados
+            - Para películas: 🎬 título, 📅 año, ⭐ calificación, 📝 descripción
+            - Para archivos: 📁 nombre, 📏 tamaño, 📅 fecha
+            - Para código/GitHub: 💻 repositorio, 🔧 función, 📊 estado
+            - Organiza la información en listas numeradas o con viñetas
+            - Usa espaciado adecuado entre secciones
+            - Si hay múltiples resultados, enuméralos claramente
+            
+            Ejemplo para películas:
+            🎬 **[Título de la película]** (📅 Año)
+            ⭐ Calificación: X.X/10
+            📝 **Sinopsis:** [Descripción]
+            🎭 **Género:** [Género]
+            
             Siempre mantén la precisión y transparencia sobre las limitaciones del contexto disponible.
-            Todas las respuestas deben ser en español.
+            Todas las respuestas deben ser en español y bien formateadas.
             """;
     }
 }
