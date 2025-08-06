@@ -3,11 +3,10 @@
     {
       "id": "melian-local",
       "name": "Melian MCP Server (Local)",
-      "description": "Local MELIAN - M\u00f3dulo de Embedding y L\u00f3gica Inteligente para Acceso Natural",
-      "url": "http://localhost:3000",
+      "description": "Local MELIAN - Módulo de Embedding y Lógica Inteligente para Acceso Natural",
+      "url": "http://localhost:8080",
       "implemented": true
     },
-
     {
       "id": "github-stdio",
       "name": "GitHub MCP Server (STDIO)",

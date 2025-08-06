@@ -238,6 +238,11 @@ export const McpServerList = ({ onServerSelect, selectedServerId, onServersUpdat
           <small className="mcp-server-last-connected">
             Last: {formatLastConnected(server.lastConnected)}
           </small>
+          {server.status === 'ERROR' && server.lastError && (
+            <small className="mcp-server-error" style={{ color: '#f44336', fontStyle: 'italic' }}>
+              Error: {server.lastError}
+            </small>
+          )}
           {!protocolInfo.isImplemented && (
             <small className="mcp-server-notice" style={{ color: '#ff9800', fontStyle: 'italic' }}>
               {protocolInfo.isRemote ? 'Remote protocol' : 'Local protocol'} - Backend implementation required

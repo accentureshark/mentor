@@ -158,12 +158,15 @@ public class McpServerService {
                     log.warn("Unsupported protocol: {} for server: {}", protocol, server.getName());
                     server.setStatus("ERROR");
                     server.setLastConnected(System.currentTimeMillis());
+                    server.setLastError("Unsupported protocol: " + protocol);
                     return server;
             }
         } catch (Exception e) {
-            log.error("Connection failed for server {}: {}", server.getName(), e.getMessage());
+            String errorMsg = e.getClass().getSimpleName() + ": " + (e.getMessage() != null ? e.getMessage() : "Connection failed");
+            log.error("Connection failed for server {}: {}", server.getName(), errorMsg, e);
             server.setStatus("ERROR");
             server.setLastConnected(System.currentTimeMillis());
+            server.setLastError(errorMsg);
             return server;
         }
     }
@@ -181,6 +184,7 @@ public class McpServerService {
         String command = server.getUrl().substring("stdio://".length()).trim();
         if (command.isEmpty()) {
             server.setStatus("ERROR");
+            server.setLastError("Comando stdio vacío");
             throw new RuntimeException("Comando stdio vacío");
         }
         try {
@@ -204,12 +208,15 @@ public class McpServerService {
 
             server.setStatus("CONNECTED");
             server.setLastConnected(System.currentTimeMillis());
+            server.setLastError(null);
             log.info("Conexión stdio establecida con {}", server.getName());
         } catch (Exception e) {
-            log.error("Error conectando stdio a {}: {}", server.getName(), e.getMessage());
+            String errorMsg = e.getClass().getSimpleName() + ": " + (e.getMessage() != null ? e.getMessage() : "Connection failed");
+            log.error("Error conectando stdio a {}: {}", server.getName(), errorMsg, e);
             server.setStatus("ERROR");
             server.setLastConnected(System.currentTimeMillis());
-            throw new RuntimeException("Fallo conexión stdio: " + e.getMessage());
+            server.setLastError(errorMsg);
+            throw new RuntimeException("Fallo conexión stdio: " + errorMsg);
         }
         return server;
     }
@@ -231,6 +238,7 @@ public class McpServerService {
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
                 log.info("HTTP connection successful to {}", server.getUrl());
                 server.setStatus("CONNECTED");
+                server.setLastError(null);
             } else if (response.statusCode() == 404 || response.statusCode() == 400) {
                 // Si /health no existe, intentar la raíz
                 log.info("Health endpoint not found, trying root endpoint for {}", server.getUrl());
@@ -245,17 +253,24 @@ public class McpServerService {
                 if (rootResponse.statusCode() >= 200 && rootResponse.statusCode() < 300) {
                     log.info("HTTP connection successful to root endpoint {}", server.getUrl());
                     server.setStatus("CONNECTED");
+                    server.setLastError(null);
                 } else {
+                    String errorMsg = String.format("HTTP %d from root endpoint", rootResponse.statusCode());
                     log.warn("HTTP connection returned status {} for {}", rootResponse.statusCode(), server.getUrl());
                     server.setStatus("ERROR");
+                    server.setLastError(errorMsg);
                 }
             } else {
+                String errorMsg = String.format("HTTP %d from health endpoint", response.statusCode());
                 log.warn("HTTP connection returned status {} for {}", response.statusCode(), server.getUrl());
                 server.setStatus("ERROR");
+                server.setLastError(errorMsg);
             }
         } catch (Exception e) {
-            log.error("HTTP connection error to {}: {}", server.getName(), e.getMessage());
+            String errorMsg = e.getClass().getSimpleName() + ": " + (e.getMessage() != null ? e.getMessage() : "Connection failed");
+            log.error("HTTP connection error to {}: {}", server.getName(), errorMsg, e);
             server.setStatus("ERROR");
+            server.setLastError(errorMsg);
         }
 
         server.setLastConnected(System.currentTimeMillis());
@@ -345,6 +360,66 @@ public class McpServerService {
 
     public InputStream getStdioOutput(String serverId) {
         return stdioOutputs.get(serverId);
+    }
+
+    public boolean pingServer(String id) {
+        McpServer server = servers.get(id);
+        if (server == null) {
+            throw new IllegalArgumentException("Server not found: " + id);
+        }
+
+        String protocol = extractProtocol(server.getUrl());
+        try {
+            switch (protocol.toLowerCase()) {
+                case "stdio":
+                    return pingStdio(server);
+                case "tcp":
+                case "ws":
+                case "wss":
+                    URI uri = URI.create(server.getUrl());
+                    String host = uri.getHost();
+                    int port = uri.getPort();
+                    if (port == -1) port = 80;
+                    try (Socket socket = new Socket()) {
+                        socket.connect(new InetSocketAddress(host, port), 2000);
+                        return true;
+                    }
+                default:
+                    HttpRequest request = HttpRequest.newBuilder()
+                            .uri(URI.create(server.getUrl() + "/mcp/ping"))
+                            .timeout(Duration.ofSeconds(3))
+                            .GET()
+                            .build();
+                    HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                    return response.statusCode() >= 200 && response.statusCode() < 300;
+            }
+        } catch (Exception e) {
+            log.warn("Ping failed for {}: {}", server.getName(), e.getMessage());
+            return false;
+        }
+    }
+
+    private boolean pingStdio(McpServer server) throws Exception {
+        OutputStream stdin = stdioInputs.get(server.getId());
+        InputStream stdout = stdioOutputs.get(server.getId());
+        if (stdin == null || stdout == null) {
+            return false;
+        }
+
+        Map<String, Object> request = Map.of(
+                "jsonrpc", "2.0",
+                "id", UUID.randomUUID().toString(),
+                "method", "ping",
+                "params", Collections.emptyMap()
+        );
+
+        String json = new ObjectMapper().writeValueAsString(request);
+        stdin.write((json + "\n").getBytes());
+        stdin.flush();
+
+        BufferedReader reader = new BufferedReader(new InputStreamReader(stdout));
+        String line = reader.readLine();
+        return line != null && line.toLowerCase().contains("pong");
     }
 
 }

@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { Card } from 'primereact/card';
-import { InputText } from 'primereact/inputtext';
+import { InputTextarea } from 'primereact/inputtextarea';
 import { Button } from 'primereact/button';
 import { ScrollPanel } from 'primereact/scrollpanel';
 import { Toast } from 'primereact/toast';
 import { Avatar } from 'primereact/avatar';
+import ReactMarkdown from 'react-markdown';
 import { chatService } from '../services/chatService';
+import { getServerTools } from '../services/toolService';
 import '../styles/chat-interface.css';
 
 const normalizeBaseUrl = (url) => {
@@ -20,6 +22,7 @@ export const ChatInterface = ({ selectedServer }) => {
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [conversationId] = useState('default');
+  const [tools, setTools] = useState([]);
   const toast = useRef(null);
   const scrollPanelRef = useRef(null);
 
@@ -45,6 +48,11 @@ export const ChatInterface = ({ selectedServer }) => {
   };
 
   useEffect(() => {
+    if (!selectedServer) return;
+    // Cargar tools del servidor seleccionado
+    getServerTools(selectedServer.id)
+      .then(setTools)
+      .catch(() => setTools([]));
     loadConversation();
     // eslint-disable-next-line
   }, [selectedServer, conversationId]);
@@ -83,7 +91,7 @@ export const ChatInterface = ({ selectedServer }) => {
       toast.current?.show({
         severity: 'error',
         summary: 'Error',
-        detail: 'Failed to send message',
+        detail: 'Error al enviar mensaje',
         life: 3000,
       });
     } finally {
@@ -97,15 +105,15 @@ export const ChatInterface = ({ selectedServer }) => {
       setMessages([]);
       toast.current?.show({
         severity: 'success',
-        summary: 'Cleared',
-        detail: 'Conversation cleared',
+        summary: 'Limpiado',
+        detail: 'Conversación limpiada',
         life: 2000,
       });
     } catch (error) {
       toast.current?.show({
         severity: 'error',
         summary: 'Error',
-        detail: 'Failed to clear conversation',
+        detail: 'Error al limpiar conversación',
         life: 3000,
       });
     }
@@ -116,6 +124,7 @@ export const ChatInterface = ({ selectedServer }) => {
       e.preventDefault();
       handleSendMessage();
     }
+    // Allow Shift+Enter for new lines in multiline input
   };
 
   const formatTimestamp = (timestamp) => {
@@ -140,14 +149,35 @@ export const ChatInterface = ({ selectedServer }) => {
           <div className="chat-message-content">
             <div className="chat-message-header">
             <span className="chat-message-role">
-              {isUser ? 'You' : selectedServer?.name || 'Assistant'}
+              {isUser ? 'Tú' : selectedServer?.name || 'Asistente'}
             </span>
               <span className="chat-message-time">
               {formatTimestamp(message.timestamp)}
             </span>
             </div>
             <div className="chat-message-text">
-              {message.content}
+              {isUser ? (
+                message.content
+              ) : (
+                <ReactMarkdown
+                  components={{
+                    // Customize how markdown elements are rendered
+                    p: ({children}) => <p style={{margin: '0.5em 0'}}>{children}</p>,
+                    h1: ({children}) => <h3 style={{color: '#2196f3', margin: '1em 0 0.5em 0'}}>{children}</h3>,
+                    h2: ({children}) => <h4 style={{color: '#2196f3', margin: '0.8em 0 0.4em 0'}}>{children}</h4>,
+                    h3: ({children}) => <h5 style={{color: '#2196f3', margin: '0.6em 0 0.3em 0'}}>{children}</h5>,
+                    ul: ({children}) => <ul style={{margin: '0.5em 0', paddingLeft: '1.5em'}}>{children}</ul>,
+                    ol: ({children}) => <ol style={{margin: '0.5em 0', paddingLeft: '1.5em'}}>{children}</ol>,
+                    li: ({children}) => <li style={{margin: '0.2em 0'}}>{children}</li>,
+                    strong: ({children}) => <strong style={{color: '#1976d2'}}>{children}</strong>,
+                    em: ({children}) => <em style={{color: '#666'}}>{children}</em>,
+                    code: ({children}) => <code style={{backgroundColor: '#f5f5f5', padding: '0.2em 0.4em', borderRadius: '3px'}}>{children}</code>,
+                    pre: ({children}) => <pre style={{backgroundColor: '#f5f5f5', padding: '1em', borderRadius: '5px', overflow: 'auto'}}>{children}</pre>
+                  }}
+                >
+                  {message.content}
+                </ReactMarkdown>
+              )}
             </div>
           </div>
         </div>
@@ -161,13 +191,13 @@ export const ChatInterface = ({ selectedServer }) => {
             <i className="pi pi-comments" style={{ fontSize: '3rem', color: '#ccc' }} />
             {!selectedServer ? (
                 <>
-                  <h3>Select an MCP Server</h3>
-                  <p>Choose an MCP server from the left panel to start chatting</p>
+                  <h3>Selecciona un Servidor MCP</h3>
+                  <p>Elige un servidor MCP del panel izquierdo para comenzar a chatear</p>
                 </>
             ) : (
                 <>
-                  <h3>Server Not Connected</h3>
-                  <p>The selected server "{selectedServer.name}" is not connected. Please connect to the server first.</p>
+                  <h3>Servidor No Conectado</h3>
+                  <p>El servidor seleccionado "{selectedServer.name}" no está conectado. Por favor, conecta al servidor primero.</p>
                 </>
             )}
           </div>
@@ -183,6 +213,19 @@ export const ChatInterface = ({ selectedServer }) => {
             <div className="chat-server-info">
               <h3>{selectedServer.name}</h3>
               <p>{selectedServer.description}</p>
+              {/* Mostrar tools del servidor */}
+              {tools.length > 0 && (
+                <div className="chat-server-tools">
+                  <strong>Herramientas disponibles:</strong>
+                  <ul>
+                    {tools.map(tool => (
+                      <li key={tool.name}>
+                        <b>{tool.name}</b>: {tool.description}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
             <div className="chat-header-actions">
               <Button
@@ -199,8 +242,8 @@ export const ChatInterface = ({ selectedServer }) => {
             <ScrollPanel ref={scrollPanelRef} className="chat-scroll-panel" style={{ height: '100%' }}>
               {messages.length === 0 ? (
                   <div className="chat-welcome">
-                    <h4>Welcome to {selectedServer.name}</h4>
-                    <p>Start a conversation by typing a message below.</p>
+                    <h4>Bienvenido a {selectedServer.name}</h4>
+                    <p>Comienza una conversación escribiendo un mensaje abajo.</p>
                   </div>
               ) : (
                   messages.map(renderMessage)
@@ -222,13 +265,15 @@ export const ChatInterface = ({ selectedServer }) => {
 
           <div className="chat-input">
             <div className="chat-input-container">
-              <InputText
+              <InputTextarea
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder={`Message ${selectedServer.name}...`}
+                  onKeyDown={handleKeyPress}
+                  placeholder={`Escribe tu mensaje para ${selectedServer.name}... (Enter para enviar, Shift+Enter para nueva línea)`}
                   className="chat-input-field"
                   disabled={loading || selectedServer.status !== 'CONNECTED'}
+                  rows={3}
+                  autoResize
               />
               <Button
                   icon="pi pi-send"
