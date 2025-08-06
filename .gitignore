@@ -57,5 +57,9 @@ dist/
 build/
 *.tsbuildinfo
 
-# Vite cache
+# Vite cache and build artifacts
 .vite/
+ui/node_modules/.vite/
+
+# Temporary files
+/tmp/
