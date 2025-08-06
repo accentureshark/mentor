@@ -28,6 +28,21 @@ export const ChatInterface = ({ selectedServer }) => {
     try {
       const history = await chatService.getConversation(BACKEND_URL, conversationId);
       setMessages(history);
+
+      // If this is the first connection, request available tools
+      if (history.length === 0 && selectedServer.status === 'CONNECTED') {
+        try {
+          const initial = await chatService.sendMessage(
+            BACKEND_URL,
+            selectedServer.id,
+            '',
+            conversationId
+          );
+          setMessages([initial]);
+        } catch (err) {
+          console.error('Failed to load initial tools', err);
+        }
+      }
     } catch (error) {
       setMessages([]);
       toast.current?.show({
