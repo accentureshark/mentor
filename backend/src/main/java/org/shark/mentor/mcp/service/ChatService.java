@@ -31,22 +31,19 @@ public class ChatService {
     // Optional dependencies for simplified implementation
     private final McpToolOrchestrator mcpToolOrchestrator;
     private final LlmServiceEnhanced enhancedLlmService;
-    private final TranslationService translationService;
     private final boolean useSimplifiedImplementation;
 
-    public ChatService(McpServerService mcpServerService, 
+    public ChatService(McpServerService mcpServerService,
                       LlmService llmService,
                       Optional<McpToolOrchestrator> mcpToolOrchestrator,
                       Optional<LlmServiceEnhanced> enhancedLlmService,
-                      McpToolService mcpToolService,
-                      TranslationService translationService) {
+                      McpToolService mcpToolService) {
         this.mcpServerService = mcpServerService;
         this.llmService = llmService;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
         this.mcpToolService = mcpToolService;
-        this.translationService = translationService;
 
         // Use simplified implementation if available
         this.mcpToolOrchestrator = mcpToolOrchestrator.orElse(null);
@@ -54,9 +51,9 @@ public class ChatService {
         this.useSimplifiedImplementation = this.mcpToolOrchestrator != null && this.enhancedLlmService != null;
         
         if (useSimplifiedImplementation) {
-            log.info("Using simplified langchain4j-based implementation with multilingual support");
+            log.info("Using simplified langchain4j-based implementation");
         } else {
-            log.info("Using original implementation with multilingual support");
+            log.info("Using original implementation");
         }
     }
 
@@ -117,53 +114,18 @@ public class ChatService {
         addMessageToConversation(conversationId, userMessage);
 
         try {
-            String originalQuery = request.getMessage();
-            String originalContext = mcpToolOrchestrator.executeTool(server, originalQuery);
-            StringBuilder combinedContext = new StringBuilder();
+            String query = request.getMessage();
+            String context = mcpToolOrchestrator.executeTool(server, query);
 
-            if (originalContext == null || originalContext.trim().isEmpty()) {
-                log.info("No se encontraron resultados con la consulta original. Intentando con traducciones.");
-                TranslationService.TranslationResult translations = translationService.getMultilingualVersions(request.getMessage());
-
-                String englishQuery = originalQuery.equalsIgnoreCase(translations.getEnglish()) ? originalQuery : translations.getEnglish();
-                if (!englishQuery.equals(originalQuery)) {
-                    try {
-                        String englishContext = mcpToolOrchestrator.executeTool(server, englishQuery);
-                        if (englishContext != null && !englishContext.trim().isEmpty()) {
-                            combinedContext.append("Contexto en inglés:\n").append(englishContext).append("\n\n");
-                        }
-                    } catch (Exception e) {
-                        log.warn("Error en consulta en inglés: {}", e.getMessage());
-                    }
-                }
-
-                String spanishQuery = translations.getSpanish();
-                if (!spanishQuery.equals(originalQuery) && !spanishQuery.equals(englishQuery)) {
-                    try {
-                        String spanishContext = mcpToolOrchestrator.executeTool(server, spanishQuery);
-                        if (spanishContext != null && !spanishContext.trim().isEmpty()) {
-                            combinedContext.append("Contexto en español:\n").append(spanishContext).append("\n\n");
-                        }
-                    } catch (Exception e) {
-                        log.warn("Error en consulta en español: {}", e.getMessage());
-                    }
-                }
-            } else {
-                combinedContext.append(originalContext);
-                log.info("Se encontraron resultados con la consulta original. No es necesario traducir.");
+            if (context == null || context.trim().isEmpty()) {
+                context = "No se encontraron resultados relevantes para la consulta.";
             }
 
-            String finalContext = combinedContext.toString();
-            if (finalContext.trim().isEmpty()) {
-                finalContext = "No se encontraron resultados relevantes para la consulta.";
-            }
-
-            TranslationService.TranslationResult translations = translationService.getMultilingualVersions(request.getMessage());
-            String assistantContent = enhancedLlmService.generateWithMemory(conversationId, translations.getOriginal(), finalContext);
+            String assistantContent = enhancedLlmService.generateWithMemory(conversationId, query, context);
 
             if (assistantContent != null && assistantContent.startsWith("Error generating response:")) {
                 log.warn("El servicio LLM devolvió error para la conversación {}, usando contexto MCP: {}", conversationId, assistantContent);
-                assistantContent = formatMcpResponse(finalContext, request.getMessage(), server.getName());
+                assistantContent = formatMcpResponse(context, request.getMessage(), server.getName());
             } else {
                 log.info("Respuesta LLM generada exitosamente para la conversación {}", conversationId);
             }
