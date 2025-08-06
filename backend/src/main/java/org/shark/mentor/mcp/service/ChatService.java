@@ -103,6 +103,12 @@ public class ChatService {
             return createErrorMessage(request, errorMessage);
         }
 
+        // Detectar conexión inicial (mensaje vacío) y retornar herramientas disponibles
+        String query = request.getMessage();
+        if (query == null || query.trim().isEmpty()) {
+            return createInitialConnectionMessage(request, server);
+        }
+
         // Crear y guardar el mensaje del usuario
         ChatMessage userMessage = ChatMessage.builder()
                 .id(UUID.randomUUID().toString())
@@ -114,7 +120,6 @@ public class ChatService {
         addMessageToConversation(conversationId, userMessage);
 
         try {
-            String query = request.getMessage();
             String context = mcpToolOrchestrator.executeTool(server, query);
 
             if (context == null || context.trim().isEmpty()) {
@@ -157,6 +162,52 @@ public class ChatService {
                 .timestamp(System.currentTimeMillis())
                 .serverId(request.getServerId())
                 .build();
+    }
+
+    private ChatMessage createInitialConnectionMessage(McpRequest request, McpServer server) {
+        StringBuilder messageContent = new StringBuilder();
+        messageContent.append("¡Entendido! Estoy listo para responder preguntas utilizando únicamente la información proporcionada en el contexto del servidor MCP. ");
+        messageContent.append("Mantendré el formato especificado y mencionaré el servidor al final de cada respuesta.\n\n");
+        
+        // Obtener herramientas disponibles
+        List<Map<String, Object>> tools = mcpToolService.getTools(server);
+        
+        if (!tools.isEmpty()) {
+            messageContent.append("🛠️ **Herramientas disponibles en ").append(server.getName()).append(":**\n\n");
+            for (Map<String, Object> tool : tools) {
+                Object nameObj = tool.get("name");
+                Object descObj = tool.get("description");
+                if (nameObj != null) {
+                    messageContent.append("• **").append(nameObj.toString()).append("**");
+                    if (descObj != null) {
+                        messageContent.append(": ").append(descObj.toString());
+                    }
+                    messageContent.append("\n");
+                }
+            }
+            messageContent.append("\n");
+        }
+        
+        messageContent.append("¿Qué pregunta tienes?");
+        
+        ChatMessage initialMessage = ChatMessage.builder()
+                .id(UUID.randomUUID().toString())
+                .role("ASSISTANT")
+                .content(messageContent.toString())
+                .timestamp(System.currentTimeMillis())
+                .serverId(request.getServerId())
+                .build();
+        
+        // Agregar mensaje a la conversación
+        String conversationId = request.getConversationId();
+        if (conversationId == null) {
+            conversationId = "default";
+        }
+        addMessageToConversation(conversationId, initialMessage);
+        
+        log.info("Created initial connection message for server {} with {} tools", server.getName(), tools.size());
+        
+        return initialMessage;
     }
 
     private String formatMcpResponse(String mcpContext, String userMessage, String serverName) {
@@ -307,6 +358,12 @@ public class ChatService {
         if (!"CONNECTED".equals(server.getStatus())) {
             String errorDetails = server.getLastError() != null ? " (Error: " + server.getLastError() + ")" : "";
             throw new IllegalStateException("Server is not connected: " + server.getName() + errorDetails + ". Use the connection button in the server list to connect.");
+        }
+
+        // Detectar conexión inicial (mensaje vacío) y retornar herramientas disponibles
+        String query = request.getMessage();
+        if (query == null || query.trim().isEmpty()) {
+            return createInitialConnectionMessage(request, server);
         }
 
         ChatMessage userMessage = ChatMessage.builder()
