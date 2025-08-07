@@ -170,21 +170,21 @@ public class ChatService {
         // Obtener herramientas disponibles
         List<Map<String, Object>> tools = mcpToolService.getTools(server);
         
-        if (!tools.isEmpty()) {
-            messageContent.append("🛠️ **Herramientas disponibles en ").append(server.getName()).append(":**\n\n");
-            for (Map<String, Object> tool : tools) {
-                Object nameObj = tool.get("name");
-                Object descObj = tool.get("description");
-                if (nameObj != null) {
-                    messageContent.append("• **").append(nameObj.toString()).append("**");
-                    if (descObj != null) {
-                        messageContent.append(": ").append(descObj.toString());
-                    }
-                    messageContent.append("\n");
-                }
-            }
-            messageContent.append("\n");
-        }
+//        if (!tools.isEmpty()) {
+//            messageContent.append("🛠️ **Herramientas disponibles en ").append(server.getName()).append(":**\n\n");
+//            for (Map<String, Object> tool : tools) {
+//                Object nameObj = tool.get("name");
+//                Object descObj = tool.get("description");
+//                if (nameObj != null) {
+//                    messageContent.append("• **").append(nameObj.toString()).append("**");
+//                    if (descObj != null) {
+//                        messageContent.append(": ").append(descObj.toString());
+//                    }
+//                    messageContent.append("\n");
+//                }
+//            }
+//            messageContent.append("\n");
+//        }
         
         messageContent.append("¿Qué pregunta tienes?");
         
