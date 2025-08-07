@@ -25,6 +25,7 @@ public class McpProperties {
         private String description;
         private String url;
         private boolean implemented;
+        private boolean prewarm;
 
     }
 }

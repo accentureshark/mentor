@@ -1,4 +1,5 @@
 {
+  "_comment": "Set \"prewarm\": true on a server to prestart its container during application startup.",
   "servers": [
     {
       "id": "melian-local",
@@ -12,7 +13,8 @@
       "name": "GitHub MCP Server (STDIO)",
       "description": "Local GitHub MCP Server running via stdio and Docker",
       "url": "stdio://docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN=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nan -e GITHUB_DYNAMIC_TOOLSETS=1 ghcr.io/github/github-mcp-server",
-      "implemented": true
+      "implemented": true,
+      "prewarm": true
     }
 
   ]

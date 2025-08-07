@@ -80,6 +80,15 @@ public class McpServerService {
 
                 addServer(server);
                 log.info("Loaded server from config: {} ({})", server.getName(), server.getUrl());
+
+                if (serverConfig.isPrewarm() && "stdio".equalsIgnoreCase(extractProtocol(server.getUrl()))) {
+                    try {
+                        startStdioProcess(server);
+                        log.info("Prewarmed stdio server: {}", server.getName());
+                    } catch (Exception e) {
+                        log.error("Failed to prewarm server {}: {}", server.getName(), e.getMessage());
+                    }
+                }
             }
         } else {
             log.warn("No MCP servers configured, falling back to sample servers");
@@ -181,34 +190,18 @@ public class McpServerService {
 
     private McpServer connectStdio(McpServer server) {
         log.info("Conectando vía stdio a: {}", server.getName());
-        String command = server.getUrl().substring("stdio://".length()).trim();
-        if (command.isEmpty()) {
-            server.setStatus("ERROR");
-            server.setLastError("Comando stdio vacío");
-            throw new RuntimeException("Comando stdio vacío");
-        }
+        Process existing = stdioProcesses.get(server.getId());
+
         try {
-            // Divide el comando en partes para ProcessBuilder
-            String[] parts = command.split("\\s+");
-            ProcessBuilder pb = new ProcessBuilder(parts);
-            pb.redirectErrorStream(true); // Redirige stderr a stdout
-
-            // Inicia el proceso
-            Process process = pb.start();
-
-            // Guarda los streams para comunicación posterior
-            stdioProcesses.put(server.getId(), process);
-            stdioInputs.put(server.getId(), process.getOutputStream());
-            InputStream stdout = process.getInputStream();
-            stdioOutputs.put(server.getId(), stdout);
-
-            // Opcional: lee la primera línea si el server produce salida inicial
-            if (stdout.available() > 0) {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(stdout));
-                String firstLine = reader.readLine();
-                log.info("Primer output stdio: {}", firstLine);
+            if (existing == null || !existing.isAlive()) {
+                if (existing != null) {
+                    stdioProcesses.remove(server.getId());
+                    stdioInputs.remove(server.getId());
+                    stdioOutputs.remove(server.getId());
+                }
+                startStdioProcess(server);
             } else {
-                log.debug("STDIO server started without initial output");
+                log.info("Reutilizando proceso stdio existente para {}", server.getName());
             }
 
             server.setStatus("CONNECTED");
@@ -224,6 +217,31 @@ public class McpServerService {
             throw new RuntimeException("Fallo conexión stdio: " + errorMsg);
         }
         return server;
+    }
+
+    private void startStdioProcess(McpServer server) throws IOException {
+        String command = server.getUrl().substring("stdio://".length()).trim();
+        if (command.isEmpty()) {
+            throw new RuntimeException("Comando stdio vacío");
+        }
+
+        String[] parts = command.split("\\s+");
+        ProcessBuilder pb = new ProcessBuilder(parts);
+        pb.redirectErrorStream(true);
+        Process process = pb.start();
+
+        stdioProcesses.put(server.getId(), process);
+        stdioInputs.put(server.getId(), process.getOutputStream());
+        InputStream stdout = process.getInputStream();
+        stdioOutputs.put(server.getId(), stdout);
+
+        if (stdout.available() > 0) {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(stdout));
+            String firstLine = reader.readLine();
+            log.info("Primer output stdio: {}", firstLine);
+        } else {
+            log.debug("STDIO server started without initial output");
+        }
     }
 
     private McpServer connectHttp(McpServer server) {
