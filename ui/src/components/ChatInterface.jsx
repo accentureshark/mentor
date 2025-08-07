@@ -5,6 +5,7 @@ import { Button } from 'primereact/button';
 import { ScrollPanel } from 'primereact/scrollpanel';
 import { Toast } from 'primereact/toast';
 import { Avatar } from 'primereact/avatar';
+import { ProgressSpinner } from 'primereact/progressspinner';
 import ReactMarkdown from 'react-markdown';
 import { chatService } from '../services/chatService';
 import { getServerTools } from '../services/toolService';
@@ -216,7 +217,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
     return (
         <div className="chat-interface-empty">
           <div className="chat-empty-content">
-            <i className="pi pi-eye" style={{ fontSize: '3rem', color: '#2196f3' }} />
+            <ProgressSpinner style={{width: '3rem', height: '3rem'}} strokeWidth="4" animationDuration="1s" />
             <h3>Revisando Herramientas del Servidor</h3>
             <p>Mostrando las herramientas disponibles en "{selectedServer.name}"...</p>
             <p><small>El chat se habilitará después de revisar las herramientas.</small></p>
