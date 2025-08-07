@@ -10,12 +10,19 @@ import java.util.List;
 public class McpProperties {
 
     private Server server = new Server();
+    private Ping ping = new Ping();
     private List<ServerConfig> servers;
 
     @Data
     public static class Server {
         private int port = 3000;
         private String host = "localhost";
+    }
+
+    @Data
+    public static class Ping {
+        private long timeoutMs = 3000;
+        private long warnThresholdMs = 1000;
     }
 
     @Data

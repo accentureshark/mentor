@@ -15,7 +15,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.*;
 
 @Service
 @Slf4j
@@ -423,8 +423,40 @@ public class McpServerService {
         stdin.flush();
 
         BufferedReader reader = new BufferedReader(new InputStreamReader(stdout));
-        String line = reader.readLine();
-        return line != null && line.toLowerCase().contains("pong");
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        long start = System.currentTimeMillis();
+        Future<String> future = executor.submit(reader::readLine);
+        try {
+            String line = future.get(properties.getPing().getTimeoutMs(), TimeUnit.MILLISECONDS);
+            long elapsed = System.currentTimeMillis() - start;
+            if (elapsed > properties.getPing().getWarnThresholdMs()) {
+                log.warn("Ping response from {} took {} ms (threshold {} ms)",
+                        server.getName(), elapsed, properties.getPing().getWarnThresholdMs());
+            }
+            return line != null && line.toLowerCase().contains("pong");
+        } catch (TimeoutException e) {
+            future.cancel(true);
+            log.warn("Ping to {} timed out after {} ms", server.getName(), properties.getPing().getTimeoutMs());
+            reconnectStdio(server);
+            return false;
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private void reconnectStdio(McpServer server) {
+        log.info("Reconnecting stdio server {}", server.getName());
+        Process process = stdioProcesses.remove(server.getId());
+        if (process != null && process.isAlive()) {
+            process.destroyForcibly();
+        }
+        stdioInputs.remove(server.getId());
+        stdioOutputs.remove(server.getId());
+        try {
+            connectStdio(server);
+        } catch (Exception e) {
+            log.error("Failed to reconnect stdio server {}: {}", server.getName(), e.getMessage());
+        }
     }
 
 }
