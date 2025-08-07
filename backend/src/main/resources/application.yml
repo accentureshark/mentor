@@ -4,6 +4,9 @@ mcp:
   server:
     port: 3000
     host: localhost
+  ping:
+    timeout-ms: 3000
+    warn-threshold-ms: 1000
   # Server list is now loaded from `mcp-servers.json` for IDE compatibility
   chat:
     implementation: simplified  # Use simplified langchain4j-based implementation
