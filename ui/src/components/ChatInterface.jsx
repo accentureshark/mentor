@@ -12,7 +12,7 @@ import '../styles/chat-interface.css';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8083/api/mcp';
 
-export const ChatInterface = ({ selectedServer }) => {
+export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -71,7 +71,7 @@ export const ChatInterface = ({ selectedServer }) => {
   }, [messages]);
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim() || !selectedServer || selectedServer.status !== 'CONNECTED' || loading) return;
+    if (!inputMessage.trim() || !selectedServer || selectedServer.status !== 'CONNECTED' || !toolsAcknowledged || loading) return;
 
     const userMessage = {
       id: Date.now().toString(),
@@ -211,6 +211,20 @@ export const ChatInterface = ({ selectedServer }) => {
     );
   }
 
+  // Si el servidor está conectado pero las herramientas no han sido reconocidas
+  if (!toolsAcknowledged) {
+    return (
+        <div className="chat-interface-empty">
+          <div className="chat-empty-content">
+            <i className="pi pi-eye" style={{ fontSize: '3rem', color: '#2196f3' }} />
+            <h3>Revisando Herramientas del Servidor</h3>
+            <p>Mostrando las herramientas disponibles en "{selectedServer.name}"...</p>
+            <p><small>El chat se habilitará después de revisar las herramientas.</small></p>
+          </div>
+        </div>
+    );
+  }
+
   return (
       <div className="chat-interface">
         <Toast ref={toast} />
@@ -277,14 +291,14 @@ export const ChatInterface = ({ selectedServer }) => {
                   onKeyDown={handleKeyPress}
                   placeholder={`Escribe tu mensaje para ${selectedServer.name}... (Enter para enviar, Shift+Enter para nueva línea)`}
                   className="chat-input-field"
-                  disabled={loading || selectedServer.status !== 'CONNECTED'}
+                  disabled={loading || selectedServer.status !== 'CONNECTED' || !toolsAcknowledged}
                   rows={3}
                   autoResize
               />
               <Button
                   icon="pi pi-send"
                   onClick={handleSendMessage}
-                  disabled={!inputMessage.trim() || loading || selectedServer.status !== 'CONNECTED'}
+                  disabled={!inputMessage.trim() || loading || selectedServer.status !== 'CONNECTED' || !toolsAcknowledged}
                   className="chat-send-button"
               />
             </div>
