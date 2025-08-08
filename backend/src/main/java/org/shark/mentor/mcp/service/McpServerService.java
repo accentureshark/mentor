@@ -248,7 +248,7 @@ public class McpServerService {
         log.info("Attempting HTTP connection to: {}", server.getUrl());
 
         try {
-            // Intentar primero /health, luego la raíz si falla
+            // Intentar primero /mcp/health, luego la raíz y otros endpoints si falla
             String healthUrl = server.getUrl() + "/mcp/health";
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(healthUrl))
@@ -263,7 +263,7 @@ public class McpServerService {
                 server.setStatus("CONNECTED");
                 server.setLastError(null);
             } else if (response.statusCode() == 404 || response.statusCode() == 400) {
-                // Si /health no existe, intentar la raíz
+                // Si /mcp/health no existe, intentar la raíz
                 log.info("Health endpoint not found, trying root endpoint for {}", server.getUrl());
                 HttpRequest rootRequest = HttpRequest.newBuilder()
                         .uri(URI.create(server.getUrl()))
@@ -277,6 +277,28 @@ public class McpServerService {
                     log.info("HTTP connection successful to root endpoint {}", server.getUrl());
                     server.setStatus("CONNECTED");
                     server.setLastError(null);
+                } else if (rootResponse.statusCode() == 404) {
+                    // Si la raíz tampoco existe, intentar un endpoint funcional
+                    log.info("Root endpoint returned 404, trying tools list endpoint for {}", server.getUrl());
+                    String toolsUrl = server.getUrl() + "/mcp/tools/list";
+                    HttpRequest toolsRequest = HttpRequest.newBuilder()
+                            .uri(URI.create(toolsUrl))
+                            .timeout(Duration.ofSeconds(5))
+                            .GET()
+                            .build();
+
+                    HttpResponse<String> toolsResponse = httpClient.send(toolsRequest, HttpResponse.BodyHandlers.ofString());
+
+                    if (toolsResponse.statusCode() >= 200 && toolsResponse.statusCode() < 300) {
+                        log.info("HTTP connection successful to tools endpoint {}", toolsUrl);
+                        server.setStatus("CONNECTED");
+                        server.setLastError(null);
+                    } else {
+                        String errorMsg = String.format("HTTP %d from tools endpoint", toolsResponse.statusCode());
+                        log.warn("HTTP connection returned status {} for {}", toolsResponse.statusCode(), toolsUrl);
+                        server.setStatus("ERROR");
+                        server.setLastError(errorMsg);
+                    }
                 } else {
                     String errorMsg = String.format("HTTP %d from root endpoint", rootResponse.statusCode());
                     log.warn("HTTP connection returned status {} for {}", rootResponse.statusCode(), server.getUrl());
