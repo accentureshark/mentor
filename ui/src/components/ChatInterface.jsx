@@ -57,10 +57,17 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
 
   useEffect(() => {
     if (!selectedServer) return;
+    console.log(`[ChatInterface] Cargando tools para ${selectedServer.id}`);
     // Cargar tools del servidor seleccionado
     getServerTools(selectedServer.id)
-      .then(setTools)
-      .catch(() => setTools([]));
+      .then((loadedTools) => {
+        console.log(`[ChatInterface] Tools cargadas para ${selectedServer.id}`, loadedTools);
+        setTools(loadedTools);
+      })
+      .catch((err) => {
+        console.error(`[ChatInterface] Error cargando tools para ${selectedServer.id}`, err);
+        setTools([]);
+      });
     loadConversation();
   }, [selectedServer]);
 
