@@ -30,6 +30,7 @@ public class McpToolController {
         McpServer server = mcpServerService.getServer(serverId)
                 .orElseThrow(() -> new IllegalArgumentException("Servidor no encontrado: " + serverId));
         List<Map<String, Object>> tools = mcpToolService.getTools(server);
+        log.info("Tools encontradas para el servidor {}: {}", serverId, tools);
         long duration = System.currentTimeMillis() - start;
         log.info("Se obtuvieron {} tools para el servidor {} en {} ms", tools.size(), serverId, duration);
         return ResponseEntity.ok(tools);

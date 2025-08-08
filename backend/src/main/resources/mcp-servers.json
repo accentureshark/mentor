@@ -15,6 +15,15 @@
       "url": "stdio://docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN=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nan -e GITHUB_DYNAMIC_TOOLSETS=1 ghcr.io/github/github-mcp-server",
       "implemented": true,
       "prewarm": true
+    },
+
+    {
+      "id": "polenta-local",
+      "name": "Polenta MCP Server (Local)",
+      "description": "Servidor Polenta MCP para acceso al Data Lake con PrestoDB",
+      "url": "http://localhost:8090",
+      "implemented": true,
+      "prewarm": true
     }
 
   ]

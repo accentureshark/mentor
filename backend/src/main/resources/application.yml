@@ -37,7 +37,7 @@ spring:
       allowed-headers: "*"
 logging:
   level:
-    org.shark.mentor.mcp: INFO
+    org.shark.mentor.mcp: DEBUG
     org.springframework.web: DEBUG
 springdoc:
   api-docs:
