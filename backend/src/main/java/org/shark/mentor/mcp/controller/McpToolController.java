@@ -25,10 +25,13 @@ public class McpToolController {
      */
     @GetMapping("/{serverId}")
     public ResponseEntity<List<Map<String, Object>>> listTools(@PathVariable String serverId) {
+        long start = System.currentTimeMillis();
         log.info("Listando tools para el servidor {}", serverId);
         McpServer server = mcpServerService.getServer(serverId)
                 .orElseThrow(() -> new IllegalArgumentException("Servidor no encontrado: " + serverId));
         List<Map<String, Object>> tools = mcpToolService.getTools(server);
+        long duration = System.currentTimeMillis() - start;
+        log.info("Se obtuvieron {} tools para el servidor {} en {} ms", tools.size(), serverId, duration);
         return ResponseEntity.ok(tools);
     }
 }
