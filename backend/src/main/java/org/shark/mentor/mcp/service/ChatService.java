@@ -8,11 +8,9 @@ import org.shark.mentor.mcp.model.McpRequest;
 import org.shark.mentor.mcp.model.McpServer;
 import org.springframework.stereotype.Service;
 
-import java.io.*;
-import java.net.URI;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,7 +23,6 @@ public class ChatService {
     private final McpServerService mcpServerService;
     private final LlmService llmService;
     private final McpToolService mcpToolService;
-    private final HttpClient httpClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
     
     // Optional dependencies for simplified implementation
@@ -40,9 +37,6 @@ public class ChatService {
                       McpToolService mcpToolService) {
         this.mcpServerService = mcpServerService;
         this.llmService = llmService;
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
-                .build();
         this.mcpToolService = mcpToolService;
 
         // Use simplified implementation if available
@@ -229,19 +223,13 @@ public class ChatService {
     }
 
     private String formatStructuredMcpResponse(JsonNode jsonNode, String serverName, String userMessage) {
+        String safeServerName = (serverName != null && !serverName.isBlank()) ? serverName : "Unknown MCP Server";
         StringBuilder formattedResponse = new StringBuilder();
-        formattedResponse.append(String.format("✅ **Response from %s**\n\n", serverName));
-        
-
-         formattedResponse.append(formatGenericStructuredResponse(jsonNode));
-
-        
-        formattedResponse.append(String.format("\n\n💡 *Information provided by %s*", serverName));
+        formattedResponse.append(String.format("✅ **Response from %s**\n\n", safeServerName));
+        formattedResponse.append(formatGenericStructuredResponse(jsonNode));
+        formattedResponse.append(String.format("\n\n💡 \\*Information provided by %s\\*", safeServerName));
         return formattedResponse.toString();
     }
-
-
-
 
 
     private String formatFileResponse(JsonNode jsonNode) {

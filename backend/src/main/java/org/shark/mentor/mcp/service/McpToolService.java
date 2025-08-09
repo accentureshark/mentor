@@ -130,7 +130,7 @@ public class McpToolService {
             log.debug("Requesting tools from {}: {}", server.getUrl(), jsonBody);
 
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(server.getUrl() + "/mcp/tools/list"))
+                    .uri(URI.create(server.getUrl() + "/mcp"))
                     .timeout(Duration.ofSeconds(10))
                     .header("Content-Type", "application/json")
                     .header("Accept", "application/json")
@@ -242,6 +242,7 @@ public class McpToolService {
         }
     }
 
+    // MCP compliant: POST a /mcp con JSON-RPC tools/call
     public String callToolViaHttp(McpServer server, String toolName, Map<String, Object> arguments) throws IOException, InterruptedException {
         log.info("Calling tool '{}' via HTTP on server: {} with arguments: {}", toolName, server.getName(), arguments);
         Map<String, Object> toolCall = Map.of(
@@ -256,7 +257,7 @@ public class McpToolService {
         String json = objectMapper.writeValueAsString(toolCall);
         log.debug("Sending tool call via HTTP: {}", json);
         HttpRequest httpRequest = HttpRequest.newBuilder()
-                .uri(URI.create(server.getUrl() + "/mcp/tools/call"))
+                .uri(URI.create(server.getUrl() + "/mcp"))
                 .timeout(Duration.ofSeconds(10))
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")

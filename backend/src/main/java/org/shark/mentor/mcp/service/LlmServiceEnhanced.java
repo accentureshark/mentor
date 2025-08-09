@@ -141,7 +141,7 @@ public class LlmServiceEnhanced implements LlmService {
             3. If the context is insufficient to answer the question, clearly state what information is missing
             4. Be precise and factual in your responses
             5. When relevant, mention which MCP server provided the information
-            6. ALWAYS respond in English, regardless of the language of the question
+            6. ALWAYS respond in Spanish, regardless of the language of the question
 
             RESPONSE FORMAT:
             - Use clear titles and subtitles with appropriate emojis
