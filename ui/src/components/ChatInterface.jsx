@@ -5,7 +5,7 @@ import { Button } from 'primereact/button';
 import { ScrollPanel } from 'primereact/scrollpanel';
 import { Toast } from 'primereact/toast';
 import { Avatar } from 'primereact/avatar';
-import { ProgressSpinner } from 'primereact/progressspinner';
+import sharkLogo from '../assets/shark-ia.png';
 import ReactMarkdown from 'react-markdown';
 import { chatService } from '../services/chatService';
 import { getServerTools } from '../services/toolService';
@@ -225,7 +225,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
     return (
         <div className="chat-interface-empty">
           <div className="chat-empty-content">
-            <ProgressSpinner style={{width: '3rem', height: '3rem'}} strokeWidth="4" animationDuration="1s" />
+            <img src={sharkLogo} alt="loading" className="shark-spinner" />
               <h3>Reviewing Server Tools</h3>
               <p>Showing the available tools on "{selectedServer.name}"...</p>
             <p><small>The chat will be enabled after reviewing the tools.</small></p>
