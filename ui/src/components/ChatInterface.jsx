@@ -18,6 +18,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [tools, setTools] = useState([]);
+  const [infoCollapsed, setInfoCollapsed] = useState(false);
   const toast = useRef(null);
   const scrollPanelRef = useRef(null);
 
@@ -239,20 +240,31 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
         <Card className="chat-container">
           <div className="chat-header">
             <div className="chat-server-info">
-              <h3>{selectedServer.name}</h3>
-              <p>{selectedServer.description}</p>
-              {/* Mostrar tools del servidor */}
-              {tools.length > 0 && (
-                <div className="chat-server-tools">
-                  <strong>Herramientas disponibles:</strong>
-                  <ul>
-                    {tools.map(tool => (
-                      <li key={tool.name}>
-                        <b>{tool.name}</b>: {tool.description}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+              <div className="chat-server-info-header">
+                <h3>{selectedServer.name}</h3>
+                <Button
+                  icon={infoCollapsed ? 'pi pi-chevron-down' : 'pi pi-chevron-up'}
+                  className="p-button-text p-button-rounded p-button-sm"
+                  onClick={() => setInfoCollapsed(prev => !prev)}
+                />
+              </div>
+              {!infoCollapsed && (
+                <>
+                  <p>{selectedServer.description}</p>
+                  {/* Mostrar tools del servidor */}
+                  {tools.length > 0 && (
+                    <div className="chat-server-tools">
+                      <strong>Herramientas disponibles:</strong>
+                      <ul>
+                        {tools.map(tool => (
+                          <li key={tool.name}>
+                            <b>{tool.name}</b>: {tool.description}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </>
               )}
             </div>
             <div className="chat-header-actions">
