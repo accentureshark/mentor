@@ -3,6 +3,7 @@ import { McpHeader } from '../components/McpHeader';
 import { McpServerList } from '../components/McpServerList';
 import { ChatInterface } from '../components/ChatInterface';
 import { ToolsModal } from '../components/ToolsModal';
+import { Splitter, SplitterPanel } from 'primereact/splitter';
 import { getServerTools } from '../services/toolService';
 import '../styles/mcp-client-app.css';
 
@@ -10,6 +11,7 @@ const McpClientApp = () => {
   const [selectedServer, setSelectedServer] = useState(null);
   const [servers, setServers] = useState([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarSize, setSidebarSize] = useState(25);
   const [toolsAcknowledged, setToolsAcknowledged] = useState(new Set());
   const [showToolsModal, setShowToolsModal] = useState(false);
   const [currentTools, setCurrentTools] = useState([]);
@@ -57,19 +59,23 @@ const McpClientApp = () => {
       <div className="mcp-client-app">
         <McpHeader onToggleSidebar={toggleSidebar} sidebarCollapsed={sidebarCollapsed} />
         <div className="mcp-client-main">
-          <div className={`mcp-client-sidebar${sidebarCollapsed ? ' collapsed' : ''}`}>
-            <McpServerList
-                onServerSelect={handleServerSelect}
-                selectedServerId={selectedServer?.id}
-                onServersUpdate={handleServersUpdate}
-            />
-          </div>
-          <div className="mcp-client-chat">
-            <ChatInterface 
-              selectedServer={selectedServer} 
-              toolsAcknowledged={toolsAcknowledged.has(selectedServer?.id)}
-            />
-          </div>
+          <Splitter style={{ width: '100%', height: '100%' }} gutterSize={8} onResizeEnd={(e) => setSidebarSize(e.sizes[0])}>
+            <SplitterPanel size={sidebarCollapsed ? 0 : sidebarSize} minSize={10} className="mcp-client-sidebar" style={sidebarCollapsed ? { display: 'none' } : {}}>
+              {!sidebarCollapsed && (
+                <McpServerList
+                  onServerSelect={handleServerSelect}
+                  selectedServerId={selectedServer?.id}
+                  onServersUpdate={handleServersUpdate}
+                />
+              )}
+            </SplitterPanel>
+            <SplitterPanel size={sidebarCollapsed ? 100 : 100 - sidebarSize} className="mcp-client-chat">
+              <ChatInterface
+                selectedServer={selectedServer}
+                toolsAcknowledged={toolsAcknowledged.has(selectedServer?.id)}
+              />
+            </SplitterPanel>
+          </Splitter>
         </div>
         
         <ToolsModal

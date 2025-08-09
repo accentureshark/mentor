@@ -232,6 +232,17 @@
   color: #666;
 }
 
+.shark-spinner {
+  width: 3rem;
+  height: 3rem;
+  animation: shark-spin 1s linear infinite;
+}
+
+@keyframes shark-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .chat-empty-content h3 {
   margin: 1rem 0 0.5rem 0;
   color: #333;
