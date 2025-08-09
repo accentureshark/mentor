@@ -38,6 +38,12 @@ public class McpToolService {
         } else {
             tools = getToolsViaHttp(server);
         }
+        // Normaliza la clave input_schema a inputSchema para compatibilidad
+        for (Map<String, Object> tool : tools) {
+            if (tool.containsKey("input_schema")) {
+                tool.put("inputSchema", tool.get("input_schema"));
+            }
+        }
         log.info("Tools encontradas para el servidor {}: {}", server.getName(), tools);
         return tools;
     }
@@ -141,11 +147,10 @@ public class McpToolService {
                     log.warn("Se esperaba objeto JSON de tools/list, pero se obtuvo: {}", rootNode);
                     return Collections.emptyList();
                 }
-                Map<String, Object> responseJson = objectMapper.convertValue(rootNode, Map.class);
-                if (responseJson.containsKey("result") && responseJson.get("result") instanceof Map) {
-                    Map<String, Object> result = (Map<String, Object>) responseJson.get("result");
-                    if (result.containsKey("tools") && result.get("tools") instanceof List) {
-                        List<Map<String, Object>> tools = (List<Map<String, Object>>) result.get("tools");
+                if (rootNode.has("result") && rootNode.get("result").has("tools")) {
+                    JsonNode toolsNode = rootNode.get("result").get("tools");
+                    if (toolsNode.isArray()) {
+                        List<Map<String, Object>> tools = objectMapper.convertValue(toolsNode, List.class);
                         log.info("Se recuperaron {} tools vía HTTP de {}", tools.size(), server.getName());
                         return tools;
                     }
