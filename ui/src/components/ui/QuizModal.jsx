@@ -30,7 +30,7 @@ export const QuizModal = ({ visible, onHide, onSave, editMode = false, initialDa
         if (editMode && initialData) {
             setQuizTitle(initialData.tema || "");
             setQuizPrompt(initialData.prompt || "");
-            
+
             if (initialData.steps && initialData.steps.length > 0) {
                 const formattedQuestions = initialData.steps.map((step, index) => ({
                     id: parseInt(step.id) || index + 1,
@@ -147,8 +147,8 @@ export const QuizModal = ({ visible, onHide, onSave, editMode = false, initialDa
     };
 
     return (
-        <Dialog 
-            header={`${editMode ? 'Editar' : 'Crear'} Quiz ${quizTitle ? `- ${quizTitle}` : ''}`}
+        <Dialog
+            header={`${editMode ? 'Edit' : 'Create'} Quiz ${quizTitle ? `- ${quizTitle}` : ''}`}
             visible={visible} 
             onHide={handleClose} 
             modal 
@@ -157,32 +157,32 @@ export const QuizModal = ({ visible, onHide, onSave, editMode = false, initialDa
             style={{ width: '50vw', minWidth: '400px', height: '700px' }}
         >
             <div className="quiz-content">
-                {/* Título del Quiz */}
+                {/* Quiz Title */}
                 <div className="quiz-title-section">
                     <label htmlFor="quiz-title" className="quiz-title-label">
                         <i className="pi pi-bookmark" style={{ marginRight: '0.5rem' }}></i>
-                        Título del Quiz
+                        Quiz Title
                     </label>
                     <InputField
                         id="quiz-title"
                         value={quizTitle}
                         onChange={(e) => setQuizTitle(e.target.value)}
-                        placeholder="Ingresa el título de tu quiz..."
+                        placeholder="Enter the title of your quiz..."
                         className="quiz-title-input"
                     />
                 </div>
 
-                {/* Prompt del Quiz */}
+                {/* Quiz Prompt */}
                 <div className="quiz-prompt-section">
                     <label htmlFor="quiz-prompt" className="quiz-prompt-label">
                         <i className="pi pi-comments" style={{ marginRight: '0.5rem' }}></i>
-                        Prompt para LLM (opcional)
+                        LLM Prompt (optional)
                     </label>
                     <textarea
                         id="quiz-prompt"
                         value={quizPrompt}
                         onChange={(e) => setQuizPrompt(e.target.value)}
-                        placeholder={defaultPrompt || "Ingresa el prompt que se usará para evaluar las respuestas con el LLM..."}
+                        placeholder={defaultPrompt || "Enter the prompt that will be used to evaluate the answers with the LLM..."}
                         className="quiz-prompt-input"
                         rows="3"
                     />
@@ -190,13 +190,13 @@ export const QuizModal = ({ visible, onHide, onSave, editMode = false, initialDa
                 {questions.map((question, index) => (
                     <div key={question.id} className="question-item">
                         <div className="question-header">
-                            <p className="question-label">Pregunta número {index + 1}</p>
+                            <p className="question-label">Question number {index + 1}</p>
                             {questions.length > 1 && (
                                 <Button 
                                     icon="pi pi-trash" 
                                     className="p-button-rounded p-button-text p-button-danger p-button-sm"
                                     onClick={() => removeQuestion(question.id)}
-                                    tooltip="Eliminar pregunta"
+                                    tooltip="Remove question"
                                     tooltipOptions={{ position: 'top' }}
                                 />
                             )}
@@ -204,7 +204,7 @@ export const QuizModal = ({ visible, onHide, onSave, editMode = false, initialDa
                         <InputField 
                             value={question.value}
                             onChange={(e) => updateQuestion(question.id, e.target.value)}
-                            placeholder={`Ingresa la pregunta ${index + 1}...`}
+                            placeholder={`Enter question ${index + 1}...`}
                             className="question-input"
                         />
                         
@@ -218,22 +218,22 @@ export const QuizModal = ({ visible, onHide, onSave, editMode = false, initialDa
                                     className="random-checkbox"
                                 />
                                 <i className="pi pi-refresh" style={{ marginLeft: '0.5rem', marginRight: '0.5rem' }}></i>
-                                Ordenar opciones aleatoriamente
+                                Shuffle options randomly
                             </label>
                         </div>
                         
                         {/* Options section */}
                         <div className="question-options">
                             <div className="options-header">
-                                <label className="options-label">
+                                    <label className="options-label">
                                     <i className="pi pi-list" style={{ marginRight: '0.5rem' }}></i>
-                                    Opciones de respuesta
+                                    Answer options
                                 </label>
                                 <Button
                                     icon="pi pi-plus"
                                     className="p-button-rounded p-button-text p-button-sm"
                                     onClick={() => addOption(question.id)}
-                                    tooltip="Agregar opción"
+                                    tooltip="Add option"
                                     tooltipOptions={{ position: 'top' }}
                                 />
                             </div>
@@ -242,7 +242,7 @@ export const QuizModal = ({ visible, onHide, onSave, editMode = false, initialDa
                                     <InputField
                                         value={option}
                                         onChange={(e) => updateOption(question.id, optionIndex, e.target.value)}
-                                        placeholder={`Opción ${optionIndex + 1}...`}
+                                        placeholder={`Option ${optionIndex + 1}...`}
                                         className="option-input"
                                     />
                                     {question.options.length > 1 && (
@@ -250,7 +250,7 @@ export const QuizModal = ({ visible, onHide, onSave, editMode = false, initialDa
                                             icon="pi pi-times"
                                             className="p-button-rounded p-button-text p-button-danger p-button-sm"
                                             onClick={() => removeOption(question.id, optionIndex)}
-                                            tooltip="Eliminar opción"
+                                            tooltip="Remove option"
                                             tooltipOptions={{ position: 'top' }}
                                         />
                                     )}
@@ -263,7 +263,7 @@ export const QuizModal = ({ visible, onHide, onSave, editMode = false, initialDa
                 <div className="add-question-section">
                     <Button
                         icon="pi pi-plus"
-                        label={`Agregar Pregunta ${questions.length < MAX_QUESTIONS ? `(${MAX_QUESTIONS - questions.length} restantes)` : ''}`}
+                        label={`Add Question ${questions.length < MAX_QUESTIONS ? `(${MAX_QUESTIONS - questions.length} remaining)` : ''}`}
                         className="p-button-outlined"
                         onClick={addQuestion}
                         disabled={questions.length >= MAX_QUESTIONS}
@@ -271,20 +271,20 @@ export const QuizModal = ({ visible, onHide, onSave, editMode = false, initialDa
                     {questions.length >= MAX_QUESTIONS && (
                         <small className="max-questions-warning">
                             <i className="pi pi-info-circle" style={{ marginRight: '0.25rem' }}></i>
-                            Máximo {MAX_QUESTIONS} preguntas permitidas
+                            Maximum {MAX_QUESTIONS} questions allowed
                         </small>
                     )}
                 </div>
 
                 <div className="modal-footer">
                     <Button
-                        label="Cancelar"
+                        label="Cancel"
                         icon="pi pi-times"
                         className="p-button-outlined"
                         onClick={handleClose}
                     />
                     <Button
-                        label={editMode ? "Actualizar" : "Guardar"}
+                        label={editMode ? "Update" : "Save"}
                         icon="pi pi-check"
                         className="p-button-primary"
                         severity="success" // Cambiado para mejor visibilidad

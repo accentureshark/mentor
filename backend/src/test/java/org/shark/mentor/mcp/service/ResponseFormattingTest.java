@@ -30,7 +30,7 @@ class ResponseFormattingTest {
               "title": "Thor",
               "year": "2011",
               "rating": "6.77",
-              "description": "Un poderoso pero arrogante dios guerrero",
+              "description": "A powerful but arrogant warrior god",
               "genre": "Action, Adventure, Fantasy"
             }
           ]
@@ -67,19 +67,19 @@ class ResponseFormattingTest {
 
     @Test
     void testFormattingImprovement() {
-        String uglyResponse = "Según el servidor MCP, hay múltiples películas con el título \"Thor\": * **Thor** (2011-04-21): Un poderoso pero arrogante dios guerrero, Thor, desciende a la Tierra como castigo";
-        
+        String uglyResponse = "According to the MCP server, there are multiple movies with the title \"Thor\": * **Thor** (2011-04-21): A powerful but arrogant warrior god, Thor, is banished to Earth as punishment";
+
         String improvedResponse = """
-        ✅ **Respuesta de Servidor de Películas**
-        
-        🎬 **Películas encontradas para "thor":**
-        
+        ✅ **Response from Movie Server**
+
+        🎬 **Movies found for "thor":**
+
         **1. Thor** (📅 2011)
-        ⭐ **Calificación:** 6.77/10
-        🎭 **Género:** Action, Adventure, Fantasy
-        📝 **Sinopsis:** Un poderoso pero arrogante dios guerrero
-        
-        💡 *Información proporcionada por Servidor de Películas*
+        ⭐ **Rating:** 6.77/10
+        🎭 **Genre:** Action, Adventure, Fantasy
+        📝 **Synopsis:** A powerful but arrogant warrior god
+
+        💡 *Information provided by Movie Server*
         """;
 
         // Verify improvement metrics

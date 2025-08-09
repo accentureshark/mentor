@@ -21,7 +21,7 @@ export const chatService = {
     const url = `${normalizeBaseUrl(baseUrl)}/chat/send`;
     const payload = { serverId, message, conversationId };
 
-    console.log('📤 Intentando enviar mensaje a:', url);
+    console.log('📤 Attempting to send message to:', url);
     console.log('📦 Payload:', JSON.stringify(payload, null, 2));
 
     try {
@@ -36,7 +36,7 @@ export const chatService = {
       console.log('📬 Raw response text:', responseText);
 
       if (!response.ok) {
-        console.error('❌ Respuesta con error HTTP:', response.status, responseText);
+        console.error('❌ HTTP error response:', response.status, responseText);
         throw new Error(`Failed to send message: HTTP ${response.status}`);
       }
 
@@ -45,7 +45,7 @@ export const chatService = {
 
       return parsed;
     } catch (err) {
-      console.error('🔥 Excepción al enviar mensaje:', err);
+      console.error('🔥 Exception sending message:', err);
       throw new Error('Failed to send message');
     }
   },

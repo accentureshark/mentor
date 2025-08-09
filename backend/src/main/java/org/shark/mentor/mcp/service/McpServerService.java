@@ -15,7 +15,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.*;
 
 @Service
 @Slf4j
@@ -80,6 +80,15 @@ public class McpServerService {
 
                 addServer(server);
                 log.info("Loaded server from config: {} ({})", server.getName(), server.getUrl());
+
+                if (serverConfig.isPrewarm() && "stdio".equalsIgnoreCase(extractProtocol(server.getUrl()))) {
+                    try {
+                        startStdioProcess(server);
+                        log.info("Prewarmed stdio server: {}", server.getName());
+                    } catch (Exception e) {
+                        log.error("Failed to prewarm server {}: {}", server.getName(), e.getMessage());
+                    }
+                }
             }
         } else {
             log.warn("No MCP servers configured, falling back to sample servers");
@@ -88,7 +97,7 @@ public class McpServerService {
     }
 
     private void initializeSampleServers() {
-        // Este método ya no es necesario - se mantiene solo como fallback
+        // This method is no longer necessary - retained only as fallback
         log.info("Using fallback sample servers");
 
         addServer(new McpServer("sample-server", "Sample MCP Server",
@@ -180,52 +189,66 @@ public class McpServerService {
 
 
     private McpServer connectStdio(McpServer server) {
-        log.info("Conectando vía stdio a: {}", server.getName());
-        String command = server.getUrl().substring("stdio://".length()).trim();
-        if (command.isEmpty()) {
-            server.setStatus("ERROR");
-            server.setLastError("Comando stdio vacío");
-            throw new RuntimeException("Comando stdio vacío");
-        }
+        log.info("Connecting via stdio to: {}", server.getName());
+        Process existing = stdioProcesses.get(server.getId());
+
         try {
-            // Divide el comando en partes para ProcessBuilder
-            String[] parts = command.split("\\s+");
-            ProcessBuilder pb = new ProcessBuilder(parts);
-            pb.redirectErrorStream(true); // Redirige stderr a stdout
-
-            // Inicia el proceso
-            Process process = pb.start();
-
-            // Guarda los streams para comunicación posterior
-            stdioProcesses.put(server.getId(), process);
-            stdioInputs.put(server.getId(), process.getOutputStream());
-            stdioOutputs.put(server.getId(), process.getInputStream());
-
-            // Opcional: lee la primera línea para verificar que el server responde
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            String firstLine = reader.readLine();
-            log.info("Primer output stdio: {}", firstLine);
+            if (existing == null || !existing.isAlive()) {
+                if (existing != null) {
+                    stdioProcesses.remove(server.getId());
+                    stdioInputs.remove(server.getId());
+                    stdioOutputs.remove(server.getId());
+                }
+                startStdioProcess(server);
+            } else {
+                log.info("Reusing existing stdio process for {}", server.getName());
+            }
 
             server.setStatus("CONNECTED");
             server.setLastConnected(System.currentTimeMillis());
             server.setLastError(null);
-            log.info("Conexión stdio establecida con {}", server.getName());
+            log.info("Stdio connection established with {}", server.getName());
         } catch (Exception e) {
             String errorMsg = e.getClass().getSimpleName() + ": " + (e.getMessage() != null ? e.getMessage() : "Connection failed");
-            log.error("Error conectando stdio a {}: {}", server.getName(), errorMsg, e);
+            log.error("Error connecting stdio to {}: {}", server.getName(), errorMsg, e);
             server.setStatus("ERROR");
             server.setLastConnected(System.currentTimeMillis());
             server.setLastError(errorMsg);
-            throw new RuntimeException("Fallo conexión stdio: " + errorMsg);
+            throw new RuntimeException("Stdio connection failure: " + errorMsg);
         }
         return server;
+    }
+
+    private void startStdioProcess(McpServer server) throws IOException {
+        String command = server.getUrl().substring("stdio://".length()).trim();
+        if (command.isEmpty()) {
+            throw new RuntimeException("Empty stdio command");
+        }
+
+        String[] parts = command.split("\\s+");
+        ProcessBuilder pb = new ProcessBuilder(parts);
+        pb.redirectErrorStream(true);
+        Process process = pb.start();
+
+        stdioProcesses.put(server.getId(), process);
+        stdioInputs.put(server.getId(), process.getOutputStream());
+        InputStream stdout = process.getInputStream();
+        stdioOutputs.put(server.getId(), stdout);
+
+        if (stdout.available() > 0) {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(stdout));
+            String firstLine = reader.readLine();
+            log.info("First stdio output: {}", firstLine);
+        } else {
+            log.debug("STDIO server started without initial output");
+        }
     }
 
     private McpServer connectHttp(McpServer server) {
         log.info("Attempting HTTP connection to: {}", server.getUrl());
 
         try {
-            // Intentar primero /health, luego la raíz si falla
+            // Attempt /mcp/health first, then the root and other endpoints if it fails
             String healthUrl = server.getUrl() + "/mcp/health";
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(healthUrl))
@@ -239,8 +262,8 @@ public class McpServerService {
                 log.info("HTTP connection successful to {}", server.getUrl());
                 server.setStatus("CONNECTED");
                 server.setLastError(null);
-            } else if (response.statusCode() == 404 || response.statusCode() == 400) {
-                // Si /health no existe, intentar la raíz
+            } else if (response.statusCode() == 404 || response.statusCode() == 405 || response.statusCode() == 400) {
+                // If /mcp/health does not exist or does not allow GET, try the root
                 log.info("Health endpoint not found, trying root endpoint for {}", server.getUrl());
                 HttpRequest rootRequest = HttpRequest.newBuilder()
                         .uri(URI.create(server.getUrl()))
@@ -254,6 +277,30 @@ public class McpServerService {
                     log.info("HTTP connection successful to root endpoint {}", server.getUrl());
                     server.setStatus("CONNECTED");
                     server.setLastError(null);
+                } else if (rootResponse.statusCode() == 404 || rootResponse.statusCode() == 405) {
+                    // If the root also does not exist or does not allow GET, try a functional endpoint
+                    log.info("Root endpoint returned {} , trying tools list endpoint for {}", rootResponse.statusCode(), server.getUrl());
+                    String toolsUrl = server.getUrl() + "/mcp/tools/list";
+                    String body = String.format("{\"jsonrpc\":\"2.0\",\"id\":\"%s\",\"method\":\"tools/list\",\"params\":{}}", UUID.randomUUID());
+                    HttpRequest toolsRequest = HttpRequest.newBuilder()
+                            .uri(URI.create(toolsUrl))
+                            .timeout(Duration.ofSeconds(5))
+                            .header("Content-Type", "application/json")
+                            .POST(HttpRequest.BodyPublishers.ofString(body))
+                            .build();
+
+                    HttpResponse<String> toolsResponse = httpClient.send(toolsRequest, HttpResponse.BodyHandlers.ofString());
+
+                    if (toolsResponse.statusCode() >= 200 && toolsResponse.statusCode() < 300) {
+                        log.info("HTTP connection successful to tools endpoint {}", toolsUrl);
+                        server.setStatus("CONNECTED");
+                        server.setLastError(null);
+                    } else {
+                        String errorMsg = String.format("HTTP %d from tools endpoint", toolsResponse.statusCode());
+                        log.error("HTTP connection returned status {} for {}", toolsResponse.statusCode(), toolsUrl);
+                        server.setStatus("ERROR");
+                        server.setLastError(errorMsg);
+                    }
                 } else {
                     String errorMsg = String.format("HTTP %d from root endpoint", rootResponse.statusCode());
                     log.warn("HTTP connection returned status {} for {}", rootResponse.statusCode(), server.getUrl());
@@ -348,7 +395,7 @@ public class McpServerService {
                 .map(server -> "CONNECTED".equals(server.getStatus()))
                 .orElse(false);
     }
-    // Agrega estos métodos públicos en McpServerService.java
+    // Add these public methods in McpServerService.java
 
     public Process getStdioProcess(String serverId) {
         return stdioProcesses.get(serverId);
@@ -418,8 +465,40 @@ public class McpServerService {
         stdin.flush();
 
         BufferedReader reader = new BufferedReader(new InputStreamReader(stdout));
-        String line = reader.readLine();
-        return line != null && line.toLowerCase().contains("pong");
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        long start = System.currentTimeMillis();
+        Future<String> future = executor.submit(reader::readLine);
+        try {
+            String line = future.get(properties.getPing().getTimeoutMs(), TimeUnit.MILLISECONDS);
+            long elapsed = System.currentTimeMillis() - start;
+            if (elapsed > properties.getPing().getWarnThresholdMs()) {
+                log.warn("Ping response from {} took {} ms (threshold {} ms)",
+                        server.getName(), elapsed, properties.getPing().getWarnThresholdMs());
+            }
+            return line != null && line.toLowerCase().contains("pong");
+        } catch (TimeoutException e) {
+            future.cancel(true);
+            log.warn("Ping to {} timed out after {} ms", server.getName(), properties.getPing().getTimeoutMs());
+            reconnectStdio(server);
+            return false;
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private void reconnectStdio(McpServer server) {
+        log.info("Reconnecting stdio server {}", server.getName());
+        Process process = stdioProcesses.remove(server.getId());
+        if (process != null && process.isAlive()) {
+            process.destroyForcibly();
+        }
+        stdioInputs.remove(server.getId());
+        stdioOutputs.remove(server.getId());
+        try {
+            connectStdio(server);
+        } catch (Exception e) {
+            log.error("Failed to reconnect stdio server {}: {}", server.getName(), e.getMessage());
+        }
     }
 
 }

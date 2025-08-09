@@ -15,6 +15,7 @@ export const McpHeader = ({ onToggleSidebar, sidebarCollapsed }) => {  return (
         <h1 className="header-title">Mentor - Model Context Protocol Client Interface</h1>
       </div>
       <div className="header-info">
+        <i className="pi pi-globe header-web-icon" />
         <span className="header-info-text">No authentication required</span>
       </div>
     </header>

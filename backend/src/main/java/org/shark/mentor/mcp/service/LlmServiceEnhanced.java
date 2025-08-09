@@ -110,55 +110,21 @@ public class LlmServiceEnhanced implements LlmService {
      */
     private String buildContextPrompt(String context, String question) {
         StringBuilder prompt = new StringBuilder();
-        prompt.append("CONTEXTO DEL SERVIDOR MCP:\n");
+        prompt.append("MCP SERVER CONTEXT:\n");
         prompt.append(context);
-        prompt.append("\n\nINSTRUCCIONES ESPECÍFICAS DE FORMATO:\n");
-        
-        // Try to detect the type of content to give specific formatting instructions
-        if (context.toLowerCase().contains("movie") || context.toLowerCase().contains("película") || 
-            context.toLowerCase().contains("title") || context.toLowerCase().contains("rating")) {
+        prompt.append("\n\nSPECIFIC FORMATTING INSTRUCTIONS:\n");
+
+
             prompt.append("""
-                Para contenido de películas, usa este formato:
-                🎬 **Películas encontradas para "[consulta]":**
-                
-                **N. [Título]** (📅 [Año])
-                ⭐ **Calificación:** [rating]/10
-                🎭 **Género:** [género]
-                📝 **Sinopsis:** [descripción]
-                
-                Repite para cada película encontrada.
+                Organize the information clearly with:
+                - Descriptive titles with appropriate emojis
+                - Information structured in lists
+                - Use of markdown for formatting
+                - Clear separation between elements
                 """);
-        } else if (context.toLowerCase().contains("file") || context.toLowerCase().contains("directory")) {
-            prompt.append("""
-                Para contenido de archivos, usa este formato:
-                📁 **Archivos encontrados:**
-                
-                📄 **[nombre]**
-                📏 Tamaño: [tamaño]
-                📅 Modificado: [fecha]
-                """);
-        } else if (context.toLowerCase().contains("repository") || context.toLowerCase().contains("github") || 
-                  context.toLowerCase().contains("issue")) {
-            prompt.append("""
-                Para contenido de GitHub, usa este formato:
-                💻 **Repositorios/Issues encontrados:**
-                
-                🔗 **[nombre]**
-                📝 [descripción]
-                💻 Lenguaje: [lenguaje]
-                📊 Estado: [estado]
-                """);
-        } else {
-            prompt.append("""
-                Organiza la información de forma clara con:
-                - Títulos descriptivos con emojis apropiados
-                - Información estructurada en listas
-                - Uso de markdown para dar formato
-                - Separación clara entre elementos
-                """);
-        }
-        
-        prompt.append("\nTermina siempre con: 💡 *Información proporcionada por [nombre del servidor]*");
+
+
+        prompt.append("\nAlways end with: 💡 *Information provided by [server name]*");
         return prompt.toString();
     }
 
@@ -167,33 +133,33 @@ public class LlmServiceEnhanced implements LlmService {
      */
     private String buildSystemPrompt() {
         return """
-            Eres un asistente útil que trabaja con servidores MCP (Model Context Protocol).
-            
-            Pautas importantes:
-            1. Responde ÚNICAMENTE usando información proporcionada en el contexto de los servidores MCP
-            2. No inferir o agregar información que no esté explícitamente indicada en el contexto
-            3. Si el contexto es insuficiente para responder la pregunta, indica claramente qué información falta
-            4. Sé preciso y factual en tus respuestas
-            5. Cuando sea relevante, menciona qué servidor MCP proporcionó la información
-            6. SIEMPRE responde en español, independientemente del idioma de la pregunta
-            
-            FORMATO DE RESPUESTA:
-            - Usa títulos y subtítulos claros con emojis apropiados
-            - Para películas: 🎬 título, 📅 año, ⭐ calificación, 📝 descripción
-            - Para archivos: 📁 nombre, 📏 tamaño, 📅 fecha
-            - Para código/GitHub: 💻 repositorio, 🔧 función, 📊 estado
-            - Organiza la información en listas numeradas o con viñetas
-            - Usa espaciado adecuado entre secciones
-            - Si hay múltiples resultados, enuméralos claramente
-            
-            Ejemplo para películas:
-            🎬 **[Título de la película]** (📅 Año)
-            ⭐ Calificación: X.X/10
-            📝 **Sinopsis:** [Descripción]
-            🎭 **Género:** [Género]
-            
-            Siempre mantén la precisión y transparencia sobre las limitaciones del contexto disponible.
-            Todas las respuestas deben ser en español y bien formateadas.
+            You are a helpful assistant that works with MCP (Model Context Protocol) servers.
+
+            Important guidelines:
+            1. Respond ONLY using information provided in the context of MCP servers
+            2. Do not infer or add information that is not explicitly indicated in the context
+            3. If the context is insufficient to answer the question, clearly state what information is missing
+            4. Be precise and factual in your responses
+            5. When relevant, mention which MCP server provided the information
+            6. ALWAYS respond in Spanish, regardless of the language of the question
+
+            RESPONSE FORMAT:
+            - Use clear titles and subtitles with appropriate emojis
+            - For movies: 🎬 title, 📅 year, ⭐ rating, 📝 description
+            - For files: 📁 name, 📏 size, 📅 date
+            - For code/GitHub: 💻 repository, 🔧 function, 📊 status
+            - Organize information in numbered or bulleted lists
+            - Use proper spacing between sections
+            - If there are multiple results, list them clearly
+
+            Example for movies:
+            🎬 **[Movie Title]** (📅 Year)
+            ⭐ Rating: X.X/10
+            📝 **Synopsis:** [Description]
+            🎭 **Genre:** [Genre]
+
+            Always maintain accuracy and transparency about the limitations of the available context.
+            All responses must be in English and well formatted.
             """;
     }
 }

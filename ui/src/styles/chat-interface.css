@@ -10,7 +10,7 @@
   display: flex;
   flex-direction: column;
   border-radius: 8px;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .chat-header {
@@ -28,9 +28,17 @@
   gap: 0.5rem;
 }
 
-.chat-server-info h3 {
-  margin: 0 0 0.5rem 0;
+.chat-server-info-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.chat-server-info-header h3 {
+  margin: 0;
   color: #333;
+  flex: 1;
 }
 
 .chat-server-info p {
@@ -158,7 +166,7 @@
   }
 }
 
-/* Input del chat - posición inferior fija */
+/* Chat input - fixed bottom position */
 .chat-input {
   padding: 1rem;
   border-top: 1px solid #e0e0e0;
@@ -210,7 +218,7 @@
   cursor: not-allowed;
 }
 
-/* Estado vacío del chat */
+/* Empty chat state */
 .chat-interface-empty {
   height: 100%;
   display: flex;
@@ -222,6 +230,17 @@
 .chat-empty-content {
   text-align: center;
   color: #666;
+}
+
+.shark-spinner {
+  width: 3rem;
+  height: 3rem;
+  animation: shark-spin 1s linear infinite;
+}
+
+@keyframes shark-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .chat-empty-content h3 {

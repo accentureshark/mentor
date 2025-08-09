@@ -5,43 +5,52 @@ import { Button } from 'primereact/button';
 import { ScrollPanel } from 'primereact/scrollpanel';
 import { Toast } from 'primereact/toast';
 import { Avatar } from 'primereact/avatar';
+import sharkLogo from '../assets/shark-ia.png';
 import ReactMarkdown from 'react-markdown';
 import { chatService } from '../services/chatService';
 import { getServerTools } from '../services/toolService';
 import '../styles/chat-interface.css';
 
-const normalizeBaseUrl = (url) => {
-  const trimmed = url.replace(/\/+$/, '');
-  return trimmed.endsWith('/api/mcp') ? trimmed : `${trimmed}/api/mcp`;
-};
-
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8083/api/mcp';
 
-export const ChatInterface = ({ selectedServer }) => {
+export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const [conversationId] = useState('default');
   const [tools, setTools] = useState([]);
+  const [infoCollapsed, setInfoCollapsed] = useState(false);
   const toast = useRef(null);
   const scrollPanelRef = useRef(null);
+
+  const conversationId = selectedServer ? `server-${selectedServer.id}` : 'default';
 
   const loadConversation = async () => {
     if (!selectedServer) return;
 
     try {
-      const newMessage = await chatService.sendMessage(
-          BACKEND_URL,
-          selectedServer.id,
-          inputMessage,
-          conversationId
-      );
-      setMessages(prev => [...prev, newMessage]);
+      const history = await chatService.getConversation(BACKEND_URL, conversationId);
+      setMessages(history);
+
+      // If this is the first connection, request available tools
+      if (history.length === 0 && selectedServer.status === 'CONNECTED') {
+        try {
+          const initial = await chatService.sendMessage(
+            BACKEND_URL,
+            selectedServer.id,
+            '',
+            conversationId
+          );
+          setMessages([initial]);
+        } catch (err) {
+          console.error('Failed to load initial tools', err);
+        }
+      }
     } catch (error) {
+      setMessages([]);
       toast.current?.show({
         severity: 'error',
         summary: 'Error',
-        detail: 'Failed to send message',
+        detail: 'Failed to load conversation',
         life: 3000,
       });
     }
@@ -49,13 +58,19 @@ export const ChatInterface = ({ selectedServer }) => {
 
   useEffect(() => {
     if (!selectedServer) return;
-    // Cargar tools del servidor seleccionado
+    console.log(`[ChatInterface] Loading tools for ${selectedServer.id}`);
+    // Load tools from the selected server
     getServerTools(selectedServer.id)
-      .then(setTools)
-      .catch(() => setTools([]));
+      .then((loadedTools) => {
+        console.log(`[ChatInterface] Tools loaded for ${selectedServer.id}`, loadedTools);
+        setTools(loadedTools);
+      })
+      .catch((err) => {
+        console.error(`[ChatInterface] Error loading tools for ${selectedServer.id}`, err);
+        setTools([]);
+      });
     loadConversation();
-    // eslint-disable-next-line
-  }, [selectedServer, conversationId]);
+  }, [selectedServer]);
 
   useEffect(() => {
     if (scrollPanelRef.current) {
@@ -65,7 +80,7 @@ export const ChatInterface = ({ selectedServer }) => {
   }, [messages]);
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim() || !selectedServer || selectedServer.status !== 'CONNECTED' || loading) return;
+    if (!inputMessage.trim() || !selectedServer || selectedServer.status !== 'CONNECTED' || !toolsAcknowledged || loading) return;
 
     const userMessage = {
       id: Date.now().toString(),
@@ -91,7 +106,7 @@ export const ChatInterface = ({ selectedServer }) => {
       toast.current?.show({
         severity: 'error',
         summary: 'Error',
-        detail: 'Error al enviar mensaje',
+        detail: 'Error sending message',
         life: 3000,
       });
     } finally {
@@ -105,15 +120,15 @@ export const ChatInterface = ({ selectedServer }) => {
       setMessages([]);
       toast.current?.show({
         severity: 'success',
-        summary: 'Limpiado',
-        detail: 'Conversación limpiada',
+        summary: 'Cleared',
+        detail: 'Conversation cleared',
         life: 2000,
       });
     } catch (error) {
       toast.current?.show({
         severity: 'error',
         summary: 'Error',
-        detail: 'Error al limpiar conversación',
+        detail: 'Error clearing conversation',
         life: 3000,
       });
     }
@@ -149,7 +164,7 @@ export const ChatInterface = ({ selectedServer }) => {
           <div className="chat-message-content">
             <div className="chat-message-header">
             <span className="chat-message-role">
-              {isUser ? 'Tú' : selectedServer?.name || 'Asistente'}
+              {isUser ? 'You' : selectedServer?.name || 'Assistant'}
             </span>
               <span className="chat-message-time">
               {formatTimestamp(message.timestamp)}
@@ -191,15 +206,29 @@ export const ChatInterface = ({ selectedServer }) => {
             <i className="pi pi-comments" style={{ fontSize: '3rem', color: '#ccc' }} />
             {!selectedServer ? (
                 <>
-                  <h3>Selecciona un Servidor MCP</h3>
-                  <p>Elige un servidor MCP del panel izquierdo para comenzar a chatear</p>
+                  <h3>Select an MCP Server</h3>
+                    <p>Select an MCP server from the left panel to start chatting</p>
                 </>
             ) : (
                 <>
-                  <h3>Servidor No Conectado</h3>
-                  <p>El servidor seleccionado "{selectedServer.name}" no está conectado. Por favor, conecta al servidor primero.</p>
+                  <h3>Server Not Connected</h3>
+                  <p>The selected server "{selectedServer.name}" is not connected. Please connect the server first.</p>
                 </>
             )}
+          </div>
+        </div>
+    );
+  }
+
+  // If the server is connected but the tools have not been acknowledged
+  if (!toolsAcknowledged) {
+    return (
+        <div className="chat-interface-empty">
+          <div className="chat-empty-content">
+            <img src={sharkLogo} alt="loading" className="shark-spinner" />
+              <h3>Reviewing Server Tools</h3>
+              <p>Showing the available tools on "{selectedServer.name}"...</p>
+            <p><small>The chat will be enabled after reviewing the tools.</small></p>
           </div>
         </div>
     );
@@ -211,20 +240,31 @@ export const ChatInterface = ({ selectedServer }) => {
         <Card className="chat-container">
           <div className="chat-header">
             <div className="chat-server-info">
-              <h3>{selectedServer.name}</h3>
-              <p>{selectedServer.description}</p>
-              {/* Mostrar tools del servidor */}
-              {tools.length > 0 && (
-                <div className="chat-server-tools">
-                  <strong>Herramientas disponibles:</strong>
-                  <ul>
-                    {tools.map(tool => (
-                      <li key={tool.name}>
-                        <b>{tool.name}</b>: {tool.description}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+              <div className="chat-server-info-header">
+                <h3>{selectedServer.name}</h3>
+                <Button
+                  icon={infoCollapsed ? 'pi pi-chevron-down' : 'pi pi-chevron-up'}
+                  className="p-button-text p-button-rounded p-button-sm"
+                  onClick={() => setInfoCollapsed(prev => !prev)}
+                />
+              </div>
+              {!infoCollapsed && (
+                <>
+                  <p>{selectedServer.description}</p>
+                  {/* Mostrar tools del servidor */}
+                  {tools.length > 0 && (
+                    <div className="chat-server-tools">
+                      <strong>Available tools:</strong>
+                      <ul>
+                        {tools.map(tool => (
+                          <li key={tool.name}>
+                            <b>{tool.name}</b>: {tool.description}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </>
               )}
             </div>
             <div className="chat-header-actions">
@@ -243,7 +283,7 @@ export const ChatInterface = ({ selectedServer }) => {
               {messages.length === 0 ? (
                   <div className="chat-welcome">
                     <h4>Bienvenido a {selectedServer.name}</h4>
-                    <p>Comienza una conversación escribiendo un mensaje abajo.</p>
+                    <p>Start a conversation by typing a message below.</p>
                   </div>
               ) : (
                   messages.map(renderMessage)
@@ -269,16 +309,16 @@ export const ChatInterface = ({ selectedServer }) => {
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyDown={handleKeyPress}
-                  placeholder={`Escribe tu mensaje para ${selectedServer.name}... (Enter para enviar, Shift+Enter para nueva línea)`}
+                  placeholder={`Type your message to ${selectedServer.name}... (Enter to send, Shift+Enter for new line)`}
                   className="chat-input-field"
-                  disabled={loading || selectedServer.status !== 'CONNECTED'}
+                  disabled={loading || selectedServer.status !== 'CONNECTED' || !toolsAcknowledged}
                   rows={3}
                   autoResize
               />
               <Button
                   icon="pi pi-send"
                   onClick={handleSendMessage}
-                  disabled={!inputMessage.trim() || loading || selectedServer.status !== 'CONNECTED'}
+                  disabled={!inputMessage.trim() || loading || selectedServer.status !== 'CONNECTED' || !toolsAcknowledged}
                   className="chat-send-button"
               />
             </div>

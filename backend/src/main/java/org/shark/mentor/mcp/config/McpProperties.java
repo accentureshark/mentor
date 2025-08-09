@@ -10,6 +10,7 @@ import java.util.List;
 public class McpProperties {
 
     private Server server = new Server();
+    private Ping ping = new Ping();
     private List<ServerConfig> servers;
 
     @Data
@@ -19,12 +20,19 @@ public class McpProperties {
     }
 
     @Data
+    public static class Ping {
+        private long timeoutMs = 3000;
+        private long warnThresholdMs = 1000;
+    }
+
+    @Data
     public static class ServerConfig {
         private String id;
         private String name;
         private String description;
         private String url;
         private boolean implemented;
+        private boolean prewarm;
 
     }
 }

@@ -8,11 +8,9 @@ import org.shark.mentor.mcp.model.McpRequest;
 import org.shark.mentor.mcp.model.McpServer;
 import org.springframework.stereotype.Service;
 
-import java.io.*;
-import java.net.URI;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,7 +23,6 @@ public class ChatService {
     private final McpServerService mcpServerService;
     private final LlmService llmService;
     private final McpToolService mcpToolService;
-    private final HttpClient httpClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
     
     // Optional dependencies for simplified implementation
@@ -40,9 +37,6 @@ public class ChatService {
                       McpToolService mcpToolService) {
         this.mcpServerService = mcpServerService;
         this.llmService = llmService;
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
-                .build();
         this.mcpToolService = mcpToolService;
 
         // Use simplified implementation if available
@@ -99,8 +93,14 @@ public class ChatService {
         McpServer server = serverOpt.get();
         if (!"CONNECTED".equals(server.getStatus())) {
             String errorDetails = server.getLastError() != null ? " (Error: " + server.getLastError() + ")" : "";
-            String errorMessage = "El servidor no está conectado: " + server.getName() + errorDetails + ". Use el botón de conexión en la lista de servidores para intentar conectar.";
+            String errorMessage = "The server is not connected: " + server.getName() + errorDetails + ". Use the connection button in the server list to attempt to connect.";
             return createErrorMessage(request, errorMessage);
+        }
+
+        // Detect initial connection (empty message) and return available tools
+        String query = request.getMessage();
+        if (query == null || query.trim().isEmpty()) {
+            return createInitialConnectionMessage(request, server);
         }
 
         // Crear y guardar el mensaje del usuario
@@ -114,7 +114,6 @@ public class ChatService {
         addMessageToConversation(conversationId, userMessage);
 
         try {
-            String query = request.getMessage();
             String context = mcpToolOrchestrator.executeTool(server, query);
 
             if (context == null || context.trim().isEmpty()) {
@@ -124,10 +123,10 @@ public class ChatService {
             String assistantContent = enhancedLlmService.generateWithMemory(conversationId, query, context);
 
             if (assistantContent != null && assistantContent.startsWith("Error generating response:")) {
-                log.warn("El servicio LLM devolvió error para la conversación {}, usando contexto MCP: {}", conversationId, assistantContent);
+                log.warn("LLM service returned error for conversation {}, using MCP context: {}", conversationId, assistantContent);
                 assistantContent = formatMcpResponse(context, request.getMessage(), server.getName());
             } else {
-                log.info("Respuesta LLM generada exitosamente para la conversación {}", conversationId);
+                log.info("LLM response successfully generated for conversation {}", conversationId);
             }
 
             ChatMessage assistantMessage = ChatMessage.builder()
@@ -140,13 +139,13 @@ public class ChatService {
 
             addMessageToConversation(conversationId, assistantMessage);
 
-            log.info("Mensaje procesado exitosamente para conversación {} usando servidor {}", conversationId, server.getName());
+            log.info("Message processed successfully for conversation {} using server {}", conversationId, server.getName());
 
             return assistantMessage;
 
         } catch (Exception e) {
-            log.error("Error procesando mensaje en implementación simplificada para conversación {}: {}", conversationId, e.getMessage(), e);
-            return createErrorMessage(request, "Error procesando mensaje: " + e.getMessage());
+            log.error("Error processing message in simplified implementation for conversation {}: {}", conversationId, e.getMessage(), e);
+            return createErrorMessage(request, "Error processing message: " + e.getMessage());
         }
     }
     private ChatMessage createErrorMessage(McpRequest request, String errorMessage) {
@@ -159,9 +158,53 @@ public class ChatService {
                 .build();
     }
 
+    private ChatMessage createInitialConnectionMessage(McpRequest request, McpServer server) {
+        StringBuilder messageContent = new StringBuilder();
+
+        // Retrieve available tools
+        List<Map<String, Object>> tools = mcpToolService.getTools(server);
+        
+//        if (!tools.isEmpty()) {
+//            messageContent.append("🛠️ **Herramientas disponibles en ").append(server.getName()).append(":**\n\n");
+//            for (Map<String, Object> tool : tools) {
+//                Object nameObj = tool.get("name");
+//                Object descObj = tool.get("description");
+//                if (nameObj != null) {
+//                    messageContent.append("• **").append(nameObj.toString()).append("**");
+//                    if (descObj != null) {
+//                        messageContent.append(": ").append(descObj.toString());
+//                    }
+//                    messageContent.append("\n");
+//                }
+//            }
+//            messageContent.append("\n");
+//        }
+        
+        messageContent.append("What is your question?");
+        
+        ChatMessage initialMessage = ChatMessage.builder()
+                .id(UUID.randomUUID().toString())
+                .role("ASSISTANT")
+                .content(messageContent.toString())
+                .timestamp(System.currentTimeMillis())
+                .serverId(request.getServerId())
+                .build();
+        
+        // Add message to the conversation
+        String conversationId = request.getConversationId();
+        if (conversationId == null) {
+            conversationId = "default";
+        }
+        addMessageToConversation(conversationId, initialMessage);
+        
+        log.info("Created initial connection message for server {} with {} tools", server.getName(), tools.size());
+        
+        return initialMessage;
+    }
+
     private String formatMcpResponse(String mcpContext, String userMessage, String serverName) {
         if (mcpContext == null || mcpContext.trim().isEmpty()) {
-            return String.format("✅ Se contactó exitosamente con %s, pero no se devolvieron datos específicos para: \"%s\"", 
+            return String.format("✅ Successfully contacted %s, but no specific data was returned for: \"%s\"",
                     serverName, userMessage);
         }
         
@@ -180,121 +223,14 @@ public class ChatService {
     }
 
     private String formatStructuredMcpResponse(JsonNode jsonNode, String serverName, String userMessage) {
+        String safeServerName = (serverName != null && !serverName.isBlank()) ? serverName : "Unknown MCP Server";
         StringBuilder formattedResponse = new StringBuilder();
-        formattedResponse.append(String.format("✅ **Respuesta de %s**\n\n", serverName));
-        
-        if (jsonNode.has("movies") || jsonNode.isArray()) {
-            formattedResponse.append(formatMovieResponse(jsonNode, userMessage));
-        } else if (jsonNode.has("movie")) {
-            formattedResponse.append(formatSingleMovieResponse(jsonNode.get("movie")));
-        } else if (jsonNode.has("files") || (jsonNode.has("result") && jsonNode.get("result").has("files"))) {
-            formattedResponse.append(formatFileResponse(jsonNode));
-        } else if (jsonNode.has("repositories") || jsonNode.has("issues")) {
-            formattedResponse.append(formatGitHubResponse(jsonNode));
-        } else {
-            // Generic structured response
-            formattedResponse.append(formatGenericStructuredResponse(jsonNode));
-        }
-        
-        formattedResponse.append(String.format("\n\n💡 *Información proporcionada por %s*", serverName));
+        formattedResponse.append(String.format("✅ **Response from %s**\n\n", safeServerName));
+        formattedResponse.append(formatGenericStructuredResponse(jsonNode));
+        formattedResponse.append(String.format("\n\n💡 \\*Information provided by %s\\*", safeServerName));
         return formattedResponse.toString();
     }
 
-    private String formatMovieResponse(JsonNode jsonNode, String userMessage) {
-        StringBuilder response = new StringBuilder();
-        JsonNode movies = jsonNode.has("movies") ? jsonNode.get("movies") : jsonNode;
-        
-        if (movies.isArray() && movies.size() > 0) {
-            response.append(String.format("🎬 **Películas encontradas para \"%s\":**\n\n", userMessage));
-            
-            int count = 1;
-            for (JsonNode movie : movies) {
-                response.append(String.format("**%d. %s**", count++, 
-                    movie.path("title").asText("Título Desconocido")));
-                
-                if (movie.has("year") || movie.has("release_date")) {
-                    String year = movie.has("year") ? movie.get("year").asText() : 
-                                 movie.path("release_date").asText().substring(0, 4);
-                    response.append(String.format(" (📅 %s)", year));
-                }
-                
-                response.append("\n");
-                
-                if (movie.has("rating") || movie.has("vote_average")) {
-                    String rating = movie.has("rating") ? movie.get("rating").asText() :
-                                   movie.get("vote_average").asText();
-                    response.append(String.format("⭐ **Calificación:** %s/10\n", rating));
-                }
-                
-                if (movie.has("genre") || movie.has("genres")) {
-                    String genre = movie.has("genre") ? movie.get("genre").asText() :
-                                  movie.path("genres").asText("N/A");
-                    response.append(String.format("🎭 **Género:** %s\n", genre));
-                }
-                
-                if (movie.has("description") || movie.has("overview")) {
-                    String description = movie.has("description") ? movie.get("description").asText() :
-                                        movie.get("overview").asText();
-                    if (!description.isEmpty() && !description.equals("null")) {
-                        response.append(String.format("📝 **Sinopsis:** %s\n", description));
-                    }
-                }
-                
-                if (movie.has("director")) {
-                    response.append(String.format("🎬 **Director:** %s\n", movie.get("director").asText()));
-                }
-                
-                response.append("\n");
-            }
-        } else {
-            response.append("🎬 No se encontraron películas que coincidan con la búsqueda.\n");
-        }
-        
-        return response.toString();
-    }
-
-    private String formatSingleMovieResponse(JsonNode movie) {
-        StringBuilder response = new StringBuilder();
-        response.append("🎬 **Detalles de la Película**\n\n");
-        
-        response.append(String.format("**📋 Título:** %s\n", movie.path("title").asText("Desconocido")));
-        
-        if (movie.has("year") || movie.has("release_date")) {
-            String year = movie.has("year") ? movie.get("year").asText() : 
-                         movie.path("release_date").asText().substring(0, 4);
-            response.append(String.format("**📅 Año:** %s\n", year));
-        }
-        
-        if (movie.has("rating") || movie.has("vote_average")) {
-            String rating = movie.has("rating") ? movie.get("rating").asText() :
-                           movie.get("vote_average").asText();
-            response.append(String.format("**⭐ Calificación:** %s/10\n", rating));
-        }
-        
-        if (movie.has("genre") || movie.has("genres")) {
-            String genre = movie.has("genre") ? movie.get("genre").asText() :
-                          movie.path("genres").asText("N/A");
-            response.append(String.format("**🎭 Género:** %s\n", genre));
-        }
-        
-        if (movie.has("director")) {
-            response.append(String.format("**🎬 Director:** %s\n", movie.get("director").asText()));
-        }
-        
-        if (movie.has("cast")) {
-            response.append(String.format("**👥 Reparto:** %s\n", movie.get("cast").asText()));
-        }
-        
-        if (movie.has("description") || movie.has("overview")) {
-            String description = movie.has("description") ? movie.get("description").asText() :
-                                movie.get("overview").asText();
-            if (!description.isEmpty() && !description.equals("null")) {
-                response.append(String.format("**📝 Sinopsis:** %s\n", description));
-            }
-        }
-        
-        return response.toString();
-    }
 
     private String formatFileResponse(JsonNode jsonNode) {
         StringBuilder response = new StringBuilder();
@@ -305,14 +241,14 @@ public class ChatService {
         
         if (files.isArray()) {
             for (JsonNode file : files) {
-                response.append(String.format("📄 **%s**\n", file.path("name").asText("archivo")));
+                response.append(String.format("📄 **%s**\n", file.path("name").asText("file")));
                 if (file.has("size")) {
-                    response.append(String.format("📏 Tamaño: %s\n", file.get("size").asText()));
+                    response.append(String.format("📏 Size: %s\n", file.get("size").asText()));
                 }
                 if (file.has("modified") || file.has("lastModified")) {
                     String modified = file.has("modified") ? file.get("modified").asText() :
                                      file.get("lastModified").asText();
-                    response.append(String.format("📅 Modificado: %s\n", modified));
+                    response.append(String.format("📅 Modified: %s\n", modified));
                 }
                 response.append("\n");
             }
@@ -321,42 +257,11 @@ public class ChatService {
         return response.toString();
     }
 
-    private String formatGitHubResponse(JsonNode jsonNode) {
-        StringBuilder response = new StringBuilder();
-        
-        if (jsonNode.has("repositories")) {
-            response.append("💻 **Repositorios encontrados:**\n\n");
-            JsonNode repos = jsonNode.get("repositories");
-            for (JsonNode repo : repos) {
-                response.append(String.format("🔗 **%s**\n", repo.path("name").asText()));
-                if (repo.has("description")) {
-                    response.append(String.format("📝 %s\n", repo.get("description").asText()));
-                }
-                if (repo.has("language")) {
-                    response.append(String.format("💻 Lenguaje: %s\n", repo.get("language").asText()));
-                }
-                response.append("\n");
-            }
-        }
-        
-        if (jsonNode.has("issues")) {
-            response.append("🐛 **Issues encontrados:**\n\n");
-            JsonNode issues = jsonNode.get("issues");
-            for (JsonNode issue : issues) {
-                response.append(String.format("🎯 **%s**\n", issue.path("title").asText()));
-                if (issue.has("state")) {
-                    response.append(String.format("📊 Estado: %s\n", issue.get("state").asText()));
-                }
-                response.append("\n");
-            }
-        }
-        
-        return response.toString();
-    }
+
 
     private String formatGenericStructuredResponse(JsonNode jsonNode) {
         StringBuilder response = new StringBuilder();
-        response.append("📋 **Información estructurada:**\n\n");
+        response.append("📋 **Structured information:**\n\n");
         
         try {
             String prettyJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(jsonNode);
@@ -370,7 +275,7 @@ public class ChatService {
 
     private String formatRawMcpResponse(String mcpContext, String serverName) {
         StringBuilder response = new StringBuilder();
-        response.append(String.format("✅ **Respuesta de %s**\n\n", serverName));
+        response.append(String.format("✅ **Response from %s**\n\n", serverName));
         
         // Try to detect if it's a list or structured text
         if (mcpContext.contains("* ") || mcpContext.contains("- ")) {
@@ -389,7 +294,7 @@ public class ChatService {
             response.append("📝 ").append(mcpContext);
         }
         
-        response.append(String.format("\n\n💡 *Información proporcionada por %s*", serverName));
+        response.append(String.format("\n\n💡 *Information provided by %s*", serverName));
         return response.toString();
     }
 
@@ -410,6 +315,12 @@ public class ChatService {
             throw new IllegalStateException("Server is not connected: " + server.getName() + errorDetails + ". Use the connection button in the server list to connect.");
         }
 
+        // Detect initial connection (empty message) and return available tools
+        String query = request.getMessage();
+        if (query == null || query.trim().isEmpty()) {
+            return createInitialConnectionMessage(request, server);
+        }
+
         ChatMessage userMessage = ChatMessage.builder()
                 .id(UUID.randomUUID().toString())
                 .role("USER")
@@ -428,11 +339,11 @@ public class ChatService {
         } else if ("http".equalsIgnoreCase(protocol) || "https".equalsIgnoreCase(protocol)) {
             assistantContent = sendMessageViaHttp(server, request.getMessage());
         } else {
-            // Fallback al LLM local
+            // Fallback to local LLM
             ChatMessage contextMessage = ChatMessage.builder()
                     .id(UUID.randomUUID().toString())
                     .role("SYSTEM")
-                    .content("Contexto no implementado todavía")
+                    .content("Context not implemented yet")
                     .timestamp(System.currentTimeMillis())
                     .serverId(request.getServerId())
                     .build();
@@ -475,14 +386,14 @@ public class ChatService {
                 return "Error: STDIO process not available";
             }
 
-            // Determinar la herramienta apropiada basada en el mensaje
+            // Determine the appropriate tool based on the message
             String toolName = mcpToolService.selectBestTool(message, server);
             Map<String, Object> toolArgs = mcpToolService.extractToolArguments(message, toolName);
 
-            // Usar tools/call con la herramienta seleccionada
+            // Use tools/call with the selected tool
             String response = mcpToolService.callToolViaStdio(stdin, stdout, toolName, toolArgs);
 
-            log.info("Respuesta stdio de {}: {}", server.getName(), response);
+            log.info("Stdio response from {}: {}", server.getName(), response);
             if (response == null) {
                 return "Error: No response from MCP server";
             }
@@ -493,33 +404,33 @@ public class ChatService {
                 } else if (root.has("error")) {
                     return "Error MCP: " + root.get("error").toString();
                 } else {
-                    return "Respuesta inesperada del MCP server: " + response;
+                    return "Unexpected response from MCP server: " + response;
                 }
             } catch (Exception parseException) {
                 log.warn("Could not parse MCP response as JSON: {}", response);
                 return response; // Return raw response if not JSON
             }
         } catch (Exception e) {
-            log.error("Error comunicando por stdio: {}", e.getMessage(), e);
-            return "Error comunicando con el MCP server por stdio: " + e.getMessage();
+            log.error("Error communicating via stdio: {}", e.getMessage(), e);
+            return "Error communicating with the MCP server via stdio: " + e.getMessage();
         }
     }
 
     private String sendMessageViaHttp(McpServer server, String message) {
         try {
-            // Obtener herramientas disponibles dinámicamente
+            // Retrieve available tools dynamically
             List<Map<String, Object>> availableTools = mcpToolService.getTools(server);
-            log.debug("Herramientas disponibles en {}: {}", server.getName(), availableTools);
+            log.debug("Available tools on {}: {}", server.getName(), availableTools);
 
-            // Seleccionar la mejor herramienta
+            // Select the best tool
             String selectedTool = mcpToolService.selectBestTool(message, server);
-            log.debug("Herramienta seleccionada para '{}': {}", message, selectedTool);
+            log.debug("Selected tool for '{}': {}", message, selectedTool);
 
-            // Extraer argumentos para la herramienta
+            // Extract arguments for the tool
             Map<String, Object> toolArgs = mcpToolService.extractToolArguments(message, selectedTool);
-            log.debug("Argumentos extraídos: {}", toolArgs);
+            log.debug("Extracted arguments: {}", toolArgs);
 
-            // Usar tools/call con la herramienta seleccionada
+            // Use tools/call with the selected tool
             String response = mcpToolService.callToolViaHttp(server, selectedTool, toolArgs);
 
             JsonNode root = objectMapper.readTree(response);
@@ -528,11 +439,11 @@ public class ChatService {
             } else if (root.has("error")) {
                 return "Error MCP: " + root.get("error").toString();
             } else {
-                return "Respuesta inesperada del MCP server: " + response;
+                return "Unexpected response from MCP server: " + response;
             }
         } catch (Exception e) {
-            log.error("Error comunicando por HTTP: {}", e.getMessage(), e);
-            return "Error comunicando con el MCP server por HTTP: " + e.getMessage();
+            log.error("Error communicating via HTTP: {}", e.getMessage(), e);
+            return "Error communicating with the MCP server via HTTP: " + e.getMessage();
         }
     }
 }
