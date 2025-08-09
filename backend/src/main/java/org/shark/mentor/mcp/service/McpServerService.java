@@ -281,10 +281,12 @@ public class McpServerService {
                     // Si la raíz tampoco existe, intentar un endpoint funcional
                     log.info("Root endpoint returned 404, trying tools list endpoint for {}", server.getUrl());
                     String toolsUrl = server.getUrl() + "/mcp/tools/list";
+                    String body = String.format("{\"jsonrpc\":\"2.0\",\"id\":\"%s\",\"method\":\"tools/list\",\"params\":{}}", UUID.randomUUID());
                     HttpRequest toolsRequest = HttpRequest.newBuilder()
                             .uri(URI.create(toolsUrl))
                             .timeout(Duration.ofSeconds(5))
-                            .GET()
+                            .header("Content-Type", "application/json")
+                            .POST(HttpRequest.BodyPublishers.ofString(body))
                             .build();
 
                     HttpResponse<String> toolsResponse = httpClient.send(toolsRequest, HttpResponse.BodyHandlers.ofString());
@@ -295,7 +297,7 @@ public class McpServerService {
                         server.setLastError(null);
                     } else {
                         String errorMsg = String.format("HTTP %d from tools endpoint", toolsResponse.statusCode());
-                        log.warn("HTTP connection returned status {} for {}", toolsResponse.statusCode(), toolsUrl);
+                        log.error("HTTP connection returned status {} for {}", toolsResponse.statusCode(), toolsUrl);
                         server.setStatus("ERROR");
                         server.setLastError(errorMsg);
                     }
