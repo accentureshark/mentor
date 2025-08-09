@@ -166,7 +166,7 @@
   }
 }
 
-/* Input del chat - posición inferior fija */
+/* Chat input - fixed bottom position */
 .chat-input {
   padding: 1rem;
   border-top: 1px solid #e0e0e0;
@@ -218,7 +218,7 @@
   cursor: not-allowed;
 }
 
-/* Estado vacío del chat */
+/* Empty chat state */
 .chat-interface-empty {
   height: 100%;
   display: flex;

@@ -116,7 +116,7 @@ export const McpServerList = ({ onServerSelect, selectedServerId, onServersUpdat
       const response = await mcpServerService.connectToServer(server.id);
       console.log('🌐 Response from connectToServer:', response);
 
-      // Evaluar estado de conexión devuelto por el backend
+      // Evaluate connection status returned by the backend
       if (response.status === 'CONNECTED') {
         toast.current?.show({
           severity: 'success',

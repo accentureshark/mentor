@@ -30,7 +30,7 @@ public class McpToolService {
     }
 
     public List<Map<String, Object>> getTools(McpServer server) {
-        log.info("Obteniendo tools para el servidor: {}", server.getName());
+        log.info("Fetching tools for server: {}", server.getName());
         String protocol = extractProtocol(server.getUrl());
         List<Map<String, Object>> tools;
         if ("stdio".equalsIgnoreCase(protocol)) {
@@ -56,7 +56,7 @@ public class McpToolService {
     }
 
     private List<Map<String, Object>> getToolsViaStdio(McpServer server) {
-        log.debug("Intentando obtener tools vía stdio para el servidor: {}", server.getName());
+        log.debug("Attempting to fetch tools via stdio for server: {}", server.getName());
         try {
             OutputStream stdin = mcpServerService.getStdioInput(server.getId());
             InputStream stdout = mcpServerService.getStdioOutput(server.getId());
@@ -73,7 +73,7 @@ public class McpToolService {
             request.put("params", new HashMap<>());
 
             String jsonRequest = objectMapper.writeValueAsString(request);
-            log.debug("Enviando tools/list por stdio a {}: {}", server.getName(), jsonRequest);
+            log.debug("Sending tools/list via stdio to {}: {}", server.getName(), jsonRequest);
 
             stdin.write((jsonRequest + "\n").getBytes(StandardCharsets.UTF_8));
             stdin.flush();
@@ -87,7 +87,7 @@ public class McpToolService {
                 line = line.trim();
                 if (line.isEmpty()) continue;
 
-                log.debug("Respuesta stdio recibida de {}: {}", server.getName(), line);
+                log.debug("Stdio response received from {}: {}", server.getName(), line);
 
                 try {
                     JsonNode responseNode = objectMapper.readTree(line);
@@ -97,28 +97,28 @@ public class McpToolService {
                             JsonNode toolsNode = result.get("tools");
                             if (toolsNode.isArray()) {
                                 List<Map<String, Object>> tools = objectMapper.convertValue(toolsNode, List.class);
-                                log.info("Se recuperaron {} tools vía stdio de {}", tools.size(), server.getName());
+                                log.info("Retrieved {} tools via stdio from {}", tools.size(), server.getName());
                                 return tools;
                             }
                         }
                     } else if (responseNode.has("error")) {
-                        log.warn("Respuesta de error desde stdio tools/list en {}: {}", server.getName(), responseNode.get("error"));
+                        log.warn("Error response from stdio tools/list in {}: {}", server.getName(), responseNode.get("error"));
                         break;
                     }
                 } catch (Exception e) {
-                    log.debug("Línea no es JSON válido, se continúa: {}", line);
+                    log.debug("Line is not valid JSON, continuing: {}", line);
                 }
             }
 
         } catch (Exception e) {
-            log.warn("Fallo al obtener tools vía stdio de {}: {}", server.getName(), e.getMessage());
+            log.warn("Failed to obtain tools via stdio from {}: {}", server.getName(), e.getMessage());
         }
 
         return Collections.emptyList();
     }
 
     private List<Map<String, Object>> getToolsViaHttp(McpServer server) {
-        log.debug("Intentando obtener tools vía HTTP para el servidor: {}", server.getName());
+        log.debug("Attempting to fetch tools via HTTP for server: {}", server.getName());
         try {
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("jsonrpc", "2.0");
@@ -127,7 +127,7 @@ public class McpToolService {
             requestBody.put("params", new HashMap<>());
 
             String jsonBody = objectMapper.writeValueAsString(requestBody);
-            log.debug("Solicitando tools a {}: {}", server.getUrl(), jsonBody);
+            log.debug("Requesting tools from {}: {}", server.getUrl(), jsonBody);
 
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(server.getUrl() + "/mcp/tools/list"))
@@ -139,19 +139,19 @@ public class McpToolService {
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             String responseText = response.body();
-            log.debug("Respuesta cruda tools/list de {}: {}", server.getName(), responseText);
+            log.debug("Raw tools/list response from {}: {}", server.getName(), responseText);
 
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
                 JsonNode rootNode = objectMapper.readTree(responseText);
                 if (!rootNode.isObject()) {
-                    log.warn("Se esperaba objeto JSON de tools/list, pero se obtuvo: {}", rootNode);
+                    log.warn("Expected JSON object from tools/list, but got: {}", rootNode);
                     return Collections.emptyList();
                 }
                 if (rootNode.has("result") && rootNode.get("result").has("tools")) {
                     JsonNode toolsNode = rootNode.get("result").get("tools");
                     if (toolsNode.isArray()) {
                         List<Map<String, Object>> tools = objectMapper.convertValue(toolsNode, List.class);
-                        log.info("Se recuperaron {} tools vía HTTP de {}", tools.size(), server.getName());
+                        log.info("Retrieved {} tools via HTTP from {}", tools.size(), server.getName());
                         return tools;
                     }
                 }
@@ -160,13 +160,13 @@ public class McpToolService {
                         server.getName(), response.statusCode(), responseText);
             }
         } catch (Exception e) {
-            log.warn("Fallo al obtener tools vía HTTP de {}: {}", server.getName(), e.getMessage());
+            log.warn("Failed to obtain tools via HTTP from {}: {}", server.getName(), e.getMessage());
         }
         return Collections.emptyList();
     }
 
     public String selectBestTool(String message, McpServer server) {
-        log.info("Seleccionando mejor tool para el mensaje: '{}' en el servidor: {}", message, server.getName());
+        log.info("Selecting best tool for message: '{}' on server: {}", message, server.getName());
         List<Map<String, Object>> tools = getTools(server);
         String lower = message.toLowerCase();
         for (Map<String, Object> tool : tools) {
@@ -174,7 +174,7 @@ public class McpToolService {
             if (nameObj instanceof String) {
                 String name = ((String) nameObj).toLowerCase();
                 if (lower.contains(name)) {
-                    log.info("Tool seleccionada por nombre: {}", nameObj);
+                    log.info("Tool selected by name: {}", nameObj);
                     return (String) nameObj;
                 }
             }
@@ -183,23 +183,23 @@ public class McpToolService {
                 String description = ((String) descObj).toLowerCase();
                 for (String word : description.split("\\W+")) {
                     if (word.length() > 3 && lower.contains(word)) {
-                        log.info("Tool seleccionada por descripción: {}", tool.get("name"));
+                        log.info("Tool selected by description: {}", tool.get("name"));
                         return (String) tool.get("name");
                     }
                 }
             }
         }
         String fallback = tools.isEmpty() ? null : (String) tools.get(0).get("name");
-        log.info("Tool seleccionada por fallback: {}", fallback);
+        log.info("Tool selected by fallback: {}", fallback);
         return fallback;
     }
 
     public Map<String, Object> extractToolArguments(String message, String toolName) {
-        log.info("Extrayendo argumentos para la tool '{}' a partir del mensaje: '{}'", toolName, message);
+        log.info("Extracting arguments for tool '{}' from message: '{}'", toolName, message);
         Map<String, Object> args = new HashMap<>();
         switch (toolName) {
             case "list_repositories":
-                if (message.toLowerCase().contains("público") || message.toLowerCase().contains("public")) {
+                if (message.toLowerCase().contains("publico") || message.toLowerCase().contains("public")) {
                     args.put("type", "public");
                 }
                 if (message.toLowerCase().contains("privado") || message.toLowerCase().contains("private")) {
@@ -216,7 +216,7 @@ public class McpToolService {
                 extractRepoInfo(message, args);
                 break;
         }
-        log.debug("Argumentos extraídos: {}", args);
+        log.debug("Extracted arguments: {}", args);
         return args;
     }
 
@@ -243,7 +243,7 @@ public class McpToolService {
     }
 
     public String callToolViaHttp(McpServer server, String toolName, Map<String, Object> arguments) throws IOException, InterruptedException {
-        log.info("Llamando a la tool '{}' vía HTTP en el servidor: {} con argumentos: {}", toolName, server.getName(), arguments);
+        log.info("Calling tool '{}' via HTTP on server: {} with arguments: {}", toolName, server.getName(), arguments);
         Map<String, Object> toolCall = Map.of(
                 "jsonrpc", "2.0",
                 "id", UUID.randomUUID().toString(),
@@ -254,7 +254,7 @@ public class McpToolService {
                 )
         );
         String json = objectMapper.writeValueAsString(toolCall);
-        log.debug("Enviando llamada de herramienta por HTTP: {}", json);
+        log.debug("Sending tool call via HTTP: {}", json);
         HttpRequest httpRequest = HttpRequest.newBuilder()
                 .uri(URI.create(server.getUrl() + "/mcp/tools/call"))
                 .timeout(Duration.ofSeconds(10))
@@ -268,7 +268,7 @@ public class McpToolService {
     }
 
     public String callToolViaStdio(OutputStream stdin, InputStream stdout, String toolName, Map<String, Object> arguments) throws IOException {
-        log.info("Llamando a la tool '{}' vía stdio con argumentos: {}", toolName, arguments);
+        log.info("Calling tool '{}' via stdio with arguments: {}", toolName, arguments);
         Map<String, Object> toolCall = Map.of(
                 "jsonrpc", "2.0",
                 "id", UUID.randomUUID().toString(),
@@ -279,7 +279,7 @@ public class McpToolService {
                 )
         );
         String json = objectMapper.writeValueAsString(toolCall);
-        log.debug("Enviando llamada de herramienta por stdio: {}", json);
+        log.debug("Sending tool call via stdio: {}", json);
         byte[] jsonBytes = json.getBytes(StandardCharsets.UTF_8);
         String header = "Content-Length: " + jsonBytes.length + "\r\n\r\n";
         stdin.write(header.getBytes(StandardCharsets.UTF_8));
@@ -298,7 +298,7 @@ public class McpToolService {
             }
         }
         if (contentLength < 0) {
-            log.warn("No se encontró Content-Length en la respuesta stdio");
+            log.warn("Content-Length not found in stdio response");
             return null;
         }
         char[] buf = new char[contentLength];

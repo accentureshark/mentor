@@ -4,7 +4,7 @@
     {
       "id": "melian-local",
       "name": "Melian MCP Server (Local)",
-      "description": "Local MELIAN - Módulo de Embedding y Lógica Inteligente para Acceso Natural",
+      "description": "Local MELIAN - Embedding Module and Intelligent Logic for Natural Access",
       "url": "http://localhost:8080",
       "implemented": true
     },
@@ -20,7 +20,7 @@
     {
       "id": "polenta-local",
       "name": "Polenta MCP Server (Local)",
-      "description": "Servidor Polenta MCP para acceso al Data Lake con PrestoDB",
+      "description": "Polenta MCP Server for Data Lake access with PrestoDB",
       "url": "http://localhost:8090",
       "implemented": true,
       "prewarm": true
