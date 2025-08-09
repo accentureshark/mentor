@@ -99,11 +99,11 @@ public class ChatService {
         McpServer server = serverOpt.get();
         if (!"CONNECTED".equals(server.getStatus())) {
             String errorDetails = server.getLastError() != null ? " (Error: " + server.getLastError() + ")" : "";
-            String errorMessage = "El servidor no está conectado: " + server.getName() + errorDetails + ". Use el botón de conexión en la lista de servidores para intentar conectar.";
+            String errorMessage = "The server is not connected: " + server.getName() + errorDetails + ". Use the connection button in the server list to attempt to connect.";
             return createErrorMessage(request, errorMessage);
         }
 
-        // Detectar conexión inicial (mensaje vacío) y retornar herramientas disponibles
+        // Detect initial connection (empty message) and return available tools
         String query = request.getMessage();
         if (query == null || query.trim().isEmpty()) {
             return createInitialConnectionMessage(request, server);
@@ -129,10 +129,10 @@ public class ChatService {
             String assistantContent = enhancedLlmService.generateWithMemory(conversationId, query, context);
 
             if (assistantContent != null && assistantContent.startsWith("Error generating response:")) {
-                log.warn("El servicio LLM devolvió error para la conversación {}, usando contexto MCP: {}", conversationId, assistantContent);
+                log.warn("LLM service returned error for conversation {}, using MCP context: {}", conversationId, assistantContent);
                 assistantContent = formatMcpResponse(context, request.getMessage(), server.getName());
             } else {
-                log.info("Respuesta LLM generada exitosamente para la conversación {}", conversationId);
+                log.info("LLM response successfully generated for conversation {}", conversationId);
             }
 
             ChatMessage assistantMessage = ChatMessage.builder()
@@ -145,13 +145,13 @@ public class ChatService {
 
             addMessageToConversation(conversationId, assistantMessage);
 
-            log.info("Mensaje procesado exitosamente para conversación {} usando servidor {}", conversationId, server.getName());
+            log.info("Message processed successfully for conversation {} using server {}", conversationId, server.getName());
 
             return assistantMessage;
 
         } catch (Exception e) {
-            log.error("Error procesando mensaje en implementación simplificada para conversación {}: {}", conversationId, e.getMessage(), e);
-            return createErrorMessage(request, "Error procesando mensaje: " + e.getMessage());
+            log.error("Error processing message in simplified implementation for conversation {}: {}", conversationId, e.getMessage(), e);
+            return createErrorMessage(request, "Error processing message: " + e.getMessage());
         }
     }
     private ChatMessage createErrorMessage(McpRequest request, String errorMessage) {
@@ -167,7 +167,7 @@ public class ChatService {
     private ChatMessage createInitialConnectionMessage(McpRequest request, McpServer server) {
         StringBuilder messageContent = new StringBuilder();
 
-        // Obtener herramientas disponibles
+        // Retrieve available tools
         List<Map<String, Object>> tools = mcpToolService.getTools(server);
         
 //        if (!tools.isEmpty()) {
@@ -186,7 +186,7 @@ public class ChatService {
 //            messageContent.append("\n");
 //        }
         
-        messageContent.append("¿Qué pregunta tienes?");
+        messageContent.append("What is your question?");
         
         ChatMessage initialMessage = ChatMessage.builder()
                 .id(UUID.randomUUID().toString())
@@ -196,7 +196,7 @@ public class ChatService {
                 .serverId(request.getServerId())
                 .build();
         
-        // Agregar mensaje a la conversación
+        // Add message to the conversation
         String conversationId = request.getConversationId();
         if (conversationId == null) {
             conversationId = "default";
@@ -210,7 +210,7 @@ public class ChatService {
 
     private String formatMcpResponse(String mcpContext, String userMessage, String serverName) {
         if (mcpContext == null || mcpContext.trim().isEmpty()) {
-            return String.format("✅ Se contactó exitosamente con %s, pero no se devolvieron datos específicos para: \"%s\"", 
+            return String.format("✅ Successfully contacted %s, but no specific data was returned for: \"%s\"",
                     serverName, userMessage);
         }
         
@@ -230,13 +230,13 @@ public class ChatService {
 
     private String formatStructuredMcpResponse(JsonNode jsonNode, String serverName, String userMessage) {
         StringBuilder formattedResponse = new StringBuilder();
-        formattedResponse.append(String.format("✅ **Respuesta de %s**\n\n", serverName));
+        formattedResponse.append(String.format("✅ **Response from %s**\n\n", serverName));
         
 
          formattedResponse.append(formatGenericStructuredResponse(jsonNode));
 
         
-        formattedResponse.append(String.format("\n\n💡 *Información proporcionada por %s*", serverName));
+        formattedResponse.append(String.format("\n\n💡 *Information provided by %s*", serverName));
         return formattedResponse.toString();
     }
 
@@ -253,14 +253,14 @@ public class ChatService {
         
         if (files.isArray()) {
             for (JsonNode file : files) {
-                response.append(String.format("📄 **%s**\n", file.path("name").asText("archivo")));
+                response.append(String.format("📄 **%s**\n", file.path("name").asText("file")));
                 if (file.has("size")) {
-                    response.append(String.format("📏 Tamaño: %s\n", file.get("size").asText()));
+                    response.append(String.format("📏 Size: %s\n", file.get("size").asText()));
                 }
                 if (file.has("modified") || file.has("lastModified")) {
                     String modified = file.has("modified") ? file.get("modified").asText() :
                                      file.get("lastModified").asText();
-                    response.append(String.format("📅 Modificado: %s\n", modified));
+                    response.append(String.format("📅 Modified: %s\n", modified));
                 }
                 response.append("\n");
             }
@@ -273,7 +273,7 @@ public class ChatService {
 
     private String formatGenericStructuredResponse(JsonNode jsonNode) {
         StringBuilder response = new StringBuilder();
-        response.append("📋 **Información estructurada:**\n\n");
+        response.append("📋 **Structured information:**\n\n");
         
         try {
             String prettyJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(jsonNode);
@@ -287,7 +287,7 @@ public class ChatService {
 
     private String formatRawMcpResponse(String mcpContext, String serverName) {
         StringBuilder response = new StringBuilder();
-        response.append(String.format("✅ **Respuesta de %s**\n\n", serverName));
+        response.append(String.format("✅ **Response from %s**\n\n", serverName));
         
         // Try to detect if it's a list or structured text
         if (mcpContext.contains("* ") || mcpContext.contains("- ")) {
@@ -306,7 +306,7 @@ public class ChatService {
             response.append("📝 ").append(mcpContext);
         }
         
-        response.append(String.format("\n\n💡 *Información proporcionada por %s*", serverName));
+        response.append(String.format("\n\n💡 *Information provided by %s*", serverName));
         return response.toString();
     }
 
@@ -327,7 +327,7 @@ public class ChatService {
             throw new IllegalStateException("Server is not connected: " + server.getName() + errorDetails + ". Use the connection button in the server list to connect.");
         }
 
-        // Detectar conexión inicial (mensaje vacío) y retornar herramientas disponibles
+        // Detect initial connection (empty message) and return available tools
         String query = request.getMessage();
         if (query == null || query.trim().isEmpty()) {
             return createInitialConnectionMessage(request, server);
@@ -351,11 +351,11 @@ public class ChatService {
         } else if ("http".equalsIgnoreCase(protocol) || "https".equalsIgnoreCase(protocol)) {
             assistantContent = sendMessageViaHttp(server, request.getMessage());
         } else {
-            // Fallback al LLM local
+            // Fallback to local LLM
             ChatMessage contextMessage = ChatMessage.builder()
                     .id(UUID.randomUUID().toString())
                     .role("SYSTEM")
-                    .content("Contexto no implementado todavía")
+                    .content("Context not implemented yet")
                     .timestamp(System.currentTimeMillis())
                     .serverId(request.getServerId())
                     .build();
@@ -398,14 +398,14 @@ public class ChatService {
                 return "Error: STDIO process not available";
             }
 
-            // Determinar la herramienta apropiada basada en el mensaje
+            // Determine the appropriate tool based on the message
             String toolName = mcpToolService.selectBestTool(message, server);
             Map<String, Object> toolArgs = mcpToolService.extractToolArguments(message, toolName);
 
-            // Usar tools/call con la herramienta seleccionada
+            // Use tools/call with the selected tool
             String response = mcpToolService.callToolViaStdio(stdin, stdout, toolName, toolArgs);
 
-            log.info("Respuesta stdio de {}: {}", server.getName(), response);
+            log.info("Stdio response from {}: {}", server.getName(), response);
             if (response == null) {
                 return "Error: No response from MCP server";
             }
@@ -416,33 +416,33 @@ public class ChatService {
                 } else if (root.has("error")) {
                     return "Error MCP: " + root.get("error").toString();
                 } else {
-                    return "Respuesta inesperada del MCP server: " + response;
+                    return "Unexpected response from MCP server: " + response;
                 }
             } catch (Exception parseException) {
                 log.warn("Could not parse MCP response as JSON: {}", response);
                 return response; // Return raw response if not JSON
             }
         } catch (Exception e) {
-            log.error("Error comunicando por stdio: {}", e.getMessage(), e);
-            return "Error comunicando con el MCP server por stdio: " + e.getMessage();
+            log.error("Error communicating via stdio: {}", e.getMessage(), e);
+            return "Error communicating with the MCP server via stdio: " + e.getMessage();
         }
     }
 
     private String sendMessageViaHttp(McpServer server, String message) {
         try {
-            // Obtener herramientas disponibles dinámicamente
+            // Retrieve available tools dynamically
             List<Map<String, Object>> availableTools = mcpToolService.getTools(server);
-            log.debug("Herramientas disponibles en {}: {}", server.getName(), availableTools);
+            log.debug("Available tools on {}: {}", server.getName(), availableTools);
 
-            // Seleccionar la mejor herramienta
+            // Select the best tool
             String selectedTool = mcpToolService.selectBestTool(message, server);
-            log.debug("Herramienta seleccionada para '{}': {}", message, selectedTool);
+            log.debug("Selected tool for '{}': {}", message, selectedTool);
 
-            // Extraer argumentos para la herramienta
+            // Extract arguments for the tool
             Map<String, Object> toolArgs = mcpToolService.extractToolArguments(message, selectedTool);
-            log.debug("Argumentos extraídos: {}", toolArgs);
+            log.debug("Extracted arguments: {}", toolArgs);
 
-            // Usar tools/call con la herramienta seleccionada
+            // Use tools/call with the selected tool
             String response = mcpToolService.callToolViaHttp(server, selectedTool, toolArgs);
 
             JsonNode root = objectMapper.readTree(response);
@@ -451,11 +451,11 @@ public class ChatService {
             } else if (root.has("error")) {
                 return "Error MCP: " + root.get("error").toString();
             } else {
-                return "Respuesta inesperada del MCP server: " + response;
+                return "Unexpected response from MCP server: " + response;
             }
         } catch (Exception e) {
-            log.error("Error comunicando por HTTP: {}", e.getMessage(), e);
-            return "Error comunicando con el MCP server por HTTP: " + e.getMessage();
+            log.error("Error communicating via HTTP: {}", e.getMessage(), e);
+            return "Error communicating with the MCP server via HTTP: " + e.getMessage();
         }
     }
 }

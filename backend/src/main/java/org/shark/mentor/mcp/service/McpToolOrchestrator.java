@@ -29,7 +29,7 @@ public class McpToolOrchestrator {
     private final McpToolService mcpToolService;
 
     /**
-     * Ejecuta una tool MCP según el mensaje del usuario
+     * Executes an MCP tool based on the user's message
      */
     public String executeTool(McpServer server, String userMessage) {
         try {
@@ -38,13 +38,13 @@ public class McpToolOrchestrator {
 
             if (availableTools.isEmpty()) {
                 log.warn("No tools available for server: {}", server.getName());
-                return "No hay herramientas disponibles en el servidor MCP seleccionado.";
+                return "There are no tools available on the selected MCP server.";
             }
 
-            // Selecciona la mejor tool (puedes usar la lógica de McpToolService o aquí)
+            // Select the best tool (you can use the logic from McpToolService or here)
             String toolName = mcpToolService.selectBestTool(userMessage, server);
             if (toolName == null) {
-                return "No se pudo determinar la herramienta adecuada para tu solicitud.";
+                return "Unable to determine the appropriate tool for your request.";
             }
             Map<String, Object> toolSchema = availableTools.stream()
                     .filter(t -> toolName.equals(t.get("name")))
@@ -58,8 +58,8 @@ public class McpToolOrchestrator {
             return executeSelectedTool(server, toolName, arguments);
 
         } catch (Exception e) {
-            log.error("Error ejecutando tool MCP para el servidor {}: {}", server.getName(), e.getMessage(), e);
-            return "Error ejecutando la herramienta: " + e.getMessage();
+            log.error("Error executing MCP tool for server {}: {}", server.getName(), e.getMessage(), e);
+            return "Error executing the tool: " + e.getMessage();
         }
     }
 
@@ -70,7 +70,7 @@ public class McpToolOrchestrator {
             OutputStream stdin = mcpServerService.getStdioInput(server.getId());
             InputStream stdout = mcpServerService.getStdioOutput(server.getId());
             if (stdin == null || stdout == null) {
-                throw new IllegalStateException("STDIO streams no disponibles para el servidor: " + server.getId());
+                throw new IllegalStateException("STDIO streams not available for server: " + server.getId());
             }
             return mcpToolService.callToolViaStdio(stdin, stdout, toolName, arguments);
         } else {

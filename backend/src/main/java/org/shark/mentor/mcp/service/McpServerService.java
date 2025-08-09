@@ -97,7 +97,7 @@ public class McpServerService {
     }
 
     private void initializeSampleServers() {
-        // Este método ya no es necesario - se mantiene solo como fallback
+        // This method is no longer necessary - retained only as fallback
         log.info("Using fallback sample servers");
 
         addServer(new McpServer("sample-server", "Sample MCP Server",
@@ -189,7 +189,7 @@ public class McpServerService {
 
 
     private McpServer connectStdio(McpServer server) {
-        log.info("Conectando vía stdio a: {}", server.getName());
+        log.info("Connecting via stdio to: {}", server.getName());
         Process existing = stdioProcesses.get(server.getId());
 
         try {
@@ -201,20 +201,20 @@ public class McpServerService {
                 }
                 startStdioProcess(server);
             } else {
-                log.info("Reutilizando proceso stdio existente para {}", server.getName());
+                log.info("Reusing existing stdio process for {}", server.getName());
             }
 
             server.setStatus("CONNECTED");
             server.setLastConnected(System.currentTimeMillis());
             server.setLastError(null);
-            log.info("Conexión stdio establecida con {}", server.getName());
+            log.info("Stdio connection established with {}", server.getName());
         } catch (Exception e) {
             String errorMsg = e.getClass().getSimpleName() + ": " + (e.getMessage() != null ? e.getMessage() : "Connection failed");
-            log.error("Error conectando stdio a {}: {}", server.getName(), errorMsg, e);
+            log.error("Error connecting stdio to {}: {}", server.getName(), errorMsg, e);
             server.setStatus("ERROR");
             server.setLastConnected(System.currentTimeMillis());
             server.setLastError(errorMsg);
-            throw new RuntimeException("Fallo conexión stdio: " + errorMsg);
+            throw new RuntimeException("Stdio connection failure: " + errorMsg);
         }
         return server;
     }
@@ -222,7 +222,7 @@ public class McpServerService {
     private void startStdioProcess(McpServer server) throws IOException {
         String command = server.getUrl().substring("stdio://".length()).trim();
         if (command.isEmpty()) {
-            throw new RuntimeException("Comando stdio vacío");
+            throw new RuntimeException("Empty stdio command");
         }
 
         String[] parts = command.split("\\s+");
@@ -238,7 +238,7 @@ public class McpServerService {
         if (stdout.available() > 0) {
             BufferedReader reader = new BufferedReader(new InputStreamReader(stdout));
             String firstLine = reader.readLine();
-            log.info("Primer output stdio: {}", firstLine);
+            log.info("First stdio output: {}", firstLine);
         } else {
             log.debug("STDIO server started without initial output");
         }
@@ -248,7 +248,7 @@ public class McpServerService {
         log.info("Attempting HTTP connection to: {}", server.getUrl());
 
         try {
-            // Intentar primero /mcp/health, luego la raíz y otros endpoints si falla
+            // Attempt /mcp/health first, then the root and other endpoints if it fails
             String healthUrl = server.getUrl() + "/mcp/health";
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(healthUrl))
@@ -263,7 +263,7 @@ public class McpServerService {
                 server.setStatus("CONNECTED");
                 server.setLastError(null);
             } else if (response.statusCode() == 404 || response.statusCode() == 405 || response.statusCode() == 400) {
-                // Si /mcp/health no existe o no permite GET, intentar la raíz
+                // If /mcp/health does not exist or does not allow GET, try the root
                 log.info("Health endpoint not found, trying root endpoint for {}", server.getUrl());
                 HttpRequest rootRequest = HttpRequest.newBuilder()
                         .uri(URI.create(server.getUrl()))
@@ -278,7 +278,7 @@ public class McpServerService {
                     server.setStatus("CONNECTED");
                     server.setLastError(null);
                 } else if (rootResponse.statusCode() == 404 || rootResponse.statusCode() == 405) {
-                    // Si la raíz tampoco existe o no permite GET, intentar un endpoint funcional
+                    // If the root also does not exist or does not allow GET, try a functional endpoint
                     log.info("Root endpoint returned {} , trying tools list endpoint for {}", rootResponse.statusCode(), server.getUrl());
                     String toolsUrl = server.getUrl() + "/mcp/tools/list";
                     String body = String.format("{\"jsonrpc\":\"2.0\",\"id\":\"%s\",\"method\":\"tools/list\",\"params\":{}}", UUID.randomUUID());
@@ -395,7 +395,7 @@ public class McpServerService {
                 .map(server -> "CONNECTED".equals(server.getStatus()))
                 .orElse(false);
     }
-    // Agrega estos métodos públicos en McpServerService.java
+    // Add these public methods in McpServerService.java
 
     public Process getStdioProcess(String serverId) {
         return stdioProcesses.get(serverId);

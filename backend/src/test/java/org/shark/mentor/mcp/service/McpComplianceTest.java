@@ -51,7 +51,7 @@ class McpComplianceTest {
                 .status("CONNECTED")
                 .build();
 
-        // Simula que no hay tools disponibles
+        // Simulate no tools available
         when(mcpToolService.getTools(server)).thenReturn(Collections.emptyList());
 
         // When executing a tool
@@ -60,7 +60,7 @@ class McpComplianceTest {
         // Then it should handle MCP protocol appropriately
         assertNotNull(result);
         // The orchestrator should gracefully handle when tools are not available
-        assertTrue(result.contains("No hay herramientas disponibles") || result.contains("Error"));
+        assertTrue(result.contains("There are no tools") || result.contains("Error"));
     }
 
     @Test
@@ -72,13 +72,13 @@ class McpComplianceTest {
                 .status("CONNECTED")
                 .build();
 
-        // Simula que getTools lanza una excepción
+        // Simulate getTools throwing an exception
         when(mcpToolService.getTools(server)).thenThrow(new RuntimeException("Simulated error"));
 
         String result = orchestrator.executeTool(server, "list repositories");
 
         // Then it should handle errors gracefully
         assertNotNull(result);
-        assertTrue(result.contains("Error") || result.contains("No tools") || result.contains("No hay herramientas disponibles"));
+        assertTrue(result.contains("Error") || result.contains("No tools") || result.contains("There are no tools"));
     }
 }

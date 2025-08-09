@@ -4,17 +4,17 @@ FROM maven:3-eclipse-temurin-21-alpine AS builder
 
 WORKDIR /app
 
-# Copiar solo el POM para cachear dependencias
+# Copy only the POM to cache dependencies
 COPY backend/pom.xml .
 
-# Montamos cache Maven (funciona con BuildKit)
+# Mount Maven cache (works with BuildKit)
 RUN --mount=type=cache,target=/root/.m2 \
     mvn dependency:go-offline
 
-# Copiamos el resto del código fuente
+# Copy the rest of the source code
 COPY backend /app
 
-# Compilamos también usando cache de Maven
+# Build using Maven cache as well
 RUN --mount=type=cache,target=/root/.m2 \
     mvn clean package -DskipTests
 

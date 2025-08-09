@@ -58,15 +58,15 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
 
   useEffect(() => {
     if (!selectedServer) return;
-    console.log(`[ChatInterface] Cargando tools para ${selectedServer.id}`);
-    // Cargar tools del servidor seleccionado
+    console.log(`[ChatInterface] Loading tools for ${selectedServer.id}`);
+    // Load tools from the selected server
     getServerTools(selectedServer.id)
       .then((loadedTools) => {
-        console.log(`[ChatInterface] Tools cargadas para ${selectedServer.id}`, loadedTools);
+        console.log(`[ChatInterface] Tools loaded for ${selectedServer.id}`, loadedTools);
         setTools(loadedTools);
       })
       .catch((err) => {
-        console.error(`[ChatInterface] Error cargando tools para ${selectedServer.id}`, err);
+        console.error(`[ChatInterface] Error loading tools for ${selectedServer.id}`, err);
         setTools([]);
       });
     loadConversation();
@@ -106,7 +106,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
       toast.current?.show({
         severity: 'error',
         summary: 'Error',
-        detail: 'Error al enviar mensaje',
+        detail: 'Error sending message',
         life: 3000,
       });
     } finally {
@@ -120,15 +120,15 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
       setMessages([]);
       toast.current?.show({
         severity: 'success',
-        summary: 'Limpiado',
-        detail: 'Conversación limpiada',
+        summary: 'Cleared',
+        detail: 'Conversation cleared',
         life: 2000,
       });
     } catch (error) {
       toast.current?.show({
         severity: 'error',
         summary: 'Error',
-        detail: 'Error al limpiar conversación',
+        detail: 'Error clearing conversation',
         life: 3000,
       });
     }
@@ -164,7 +164,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
           <div className="chat-message-content">
             <div className="chat-message-header">
             <span className="chat-message-role">
-              {isUser ? 'Tú' : selectedServer?.name || 'Asistente'}
+              {isUser ? 'You' : selectedServer?.name || 'Assistant'}
             </span>
               <span className="chat-message-time">
               {formatTimestamp(message.timestamp)}
@@ -206,13 +206,13 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
             <i className="pi pi-comments" style={{ fontSize: '3rem', color: '#ccc' }} />
             {!selectedServer ? (
                 <>
-                  <h3>Selecciona un Servidor MCP</h3>
-                  <p>Elige un servidor MCP del panel izquierdo para comenzar a chatear</p>
+                  <h3>Select an MCP Server</h3>
+                    <p>Select an MCP server from the left panel to start chatting</p>
                 </>
             ) : (
                 <>
-                  <h3>Servidor No Conectado</h3>
-                  <p>El servidor seleccionado "{selectedServer.name}" no está conectado. Por favor, conecta al servidor primero.</p>
+                  <h3>Server Not Connected</h3>
+                  <p>The selected server "{selectedServer.name}" is not connected. Please connect the server first.</p>
                 </>
             )}
           </div>
@@ -220,15 +220,15 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
     );
   }
 
-  // Si el servidor está conectado pero las herramientas no han sido reconocidas
+  // If the server is connected but the tools have not been acknowledged
   if (!toolsAcknowledged) {
     return (
         <div className="chat-interface-empty">
           <div className="chat-empty-content">
             <ProgressSpinner style={{width: '3rem', height: '3rem'}} strokeWidth="4" animationDuration="1s" />
-            <h3>Revisando Herramientas del Servidor</h3>
-            <p>Mostrando las herramientas disponibles en "{selectedServer.name}"...</p>
-            <p><small>El chat se habilitará después de revisar las herramientas.</small></p>
+              <h3>Reviewing Server Tools</h3>
+              <p>Showing the available tools on "{selectedServer.name}"...</p>
+            <p><small>The chat will be enabled after reviewing the tools.</small></p>
           </div>
         </div>
     );
@@ -254,7 +254,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
                   {/* Mostrar tools del servidor */}
                   {tools.length > 0 && (
                     <div className="chat-server-tools">
-                      <strong>Herramientas disponibles:</strong>
+                      <strong>Available tools:</strong>
                       <ul>
                         {tools.map(tool => (
                           <li key={tool.name}>
@@ -283,7 +283,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
               {messages.length === 0 ? (
                   <div className="chat-welcome">
                     <h4>Bienvenido a {selectedServer.name}</h4>
-                    <p>Comienza una conversación escribiendo un mensaje abajo.</p>
+                    <p>Start a conversation by typing a message below.</p>
                   </div>
               ) : (
                   messages.map(renderMessage)
@@ -309,7 +309,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyDown={handleKeyPress}
-                  placeholder={`Escribe tu mensaje para ${selectedServer.name}... (Enter para enviar, Shift+Enter para nueva línea)`}
+                  placeholder={`Type your message to ${selectedServer.name}... (Enter to send, Shift+Enter for new line)`}
                   className="chat-input-field"
                   disabled={loading || selectedServer.status !== 'CONNECTED' || !toolsAcknowledged}
                   rows={3}

@@ -18,7 +18,7 @@ const McpClientApp = () => {
   const handleServerSelect = async (server) => {
     setSelectedServer(server);
     
-    // Si el servidor está conectado y no hemos mostrado las herramientas aún
+    // If the server is connected and we haven't shown the tools yet
     if (server.status === 'CONNECTED' && !toolsAcknowledged.has(server.id)) {
       try {
         console.log('Fetching tools for first-time server selection:', server.name);
@@ -27,7 +27,7 @@ const McpClientApp = () => {
         setShowToolsModal(true);
       } catch (error) {
         console.error('Error fetching tools:', error);
-        // Si no se pueden obtener las herramientas, marcar como reconocido para permitir el chat
+        // If tools cannot be fetched, mark as acknowledged to allow the chat
         setToolsAcknowledged(prev => new Set(prev).add(server.id));
       }
     }
@@ -36,7 +36,7 @@ const McpClientApp = () => {
   const handleToolsModalHide = () => {
     setShowToolsModal(false);
     if (selectedServer) {
-      // Marcar las herramientas como reconocidas para este servidor
+      // Mark the tools as acknowledged for this server
       setToolsAcknowledged(prev => new Set(prev).add(selectedServer.id));
     }
   };
@@ -44,7 +44,7 @@ const McpClientApp = () => {
   const handleServersUpdate = (updatedServers) => {
     setServers(updatedServers);
 
-    // Si hay un servidor seleccionado, actualízalo con los nuevos datos
+    // If a server is selected, update it with the new data
     if (selectedServer) {
       const updatedSelectedServer = updatedServers.find(s => s.id === selectedServer.id);
       if (updatedSelectedServer) {

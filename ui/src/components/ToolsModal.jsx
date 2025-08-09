@@ -11,7 +11,7 @@ export const ToolsModal = ({ visible, onHide, tools, serverName }) => {
   const footer = (
     <div>
       <Button
-        label="Continuar al Chat"
+        label="Continue to Chat"
         icon="pi pi-check"
         onClick={handleContinue}
         className="p-button-success"
@@ -23,7 +23,7 @@ export const ToolsModal = ({ visible, onHide, tools, serverName }) => {
     <Dialog
       visible={visible}
       onHide={onHide}
-      header={`Herramientas disponibles en ${serverName}`}
+      header={`Available tools in ${serverName}`}
       footer={footer}
       style={{ width: '70vw', maxWidth: '800px' }}
       maximizable
@@ -32,13 +32,13 @@ export const ToolsModal = ({ visible, onHide, tools, serverName }) => {
     >
       <div className="tools-modal-content">
         <p className="tools-modal-description">
-          Este servidor MCP expone las siguientes herramientas que podrás usar en el chat:
+          This MCP server exposes the following tools you can use in the chat:
         </p>
         
         {tools.length === 0 ? (
           <div className="tools-empty-state">
             <i className="pi pi-info-circle" style={{ fontSize: '2rem', color: '#ccc' }} />
-            <p>No se encontraron herramientas disponibles en este servidor.</p>
+            <p>No tools available on this server.</p>
           </div>
         ) : (
           <div className="tools-grid">
@@ -52,11 +52,11 @@ export const ToolsModal = ({ visible, onHide, tools, serverName }) => {
                 </div>
                 <div className="tool-content">
                   <p className="tool-description">
-                    {tool.description || 'Sin descripción disponible'}
+                    {tool.description || 'No description available'}
                   </p>
                   {tool.inputSchema && tool.inputSchema.properties && (
                     <div className="tool-parameters">
-                      <strong>Parámetros:</strong>
+                      <strong>Parameters:</strong>
                       <ul>
                         {Object.entries(tool.inputSchema.properties).map(([paramName, paramInfo]) => (
                           <li key={paramName}>

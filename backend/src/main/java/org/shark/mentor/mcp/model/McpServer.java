@@ -26,7 +26,7 @@ public class McpServer {
 
 
 
-    // Constructor adicional para 5 parámetros
+    // Additional constructor for 5 parameters
     public McpServer(String id, String name, String description, String url, String status) {
         this.id = id;
         this.name = name;
