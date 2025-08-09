@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.shark.mentor.mcp.model.McpServer;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
@@ -22,7 +23,7 @@ public class McpToolService {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final McpServerService mcpServerService;
 
-    public McpToolService(McpServerService mcpServerService) {
+    public McpToolService(@Lazy McpServerService mcpServerService) {
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
@@ -113,6 +114,20 @@ public class McpToolService {
 
     private List<Map<String, Object>> getToolsViaHttp(McpServer server) {
         log.debug("Intentando obtener tools vía HTTP para el servidor: {}", server.getName());
+        return requestToolsList(server)
+                .map(rootNode -> {
+                    JsonNode toolsNode = rootNode.path("result").path("tools");
+                    if (toolsNode.isArray()) {
+                        List<Map<String, Object>> tools = objectMapper.convertValue(toolsNode, List.class);
+                        log.info("Se recuperaron {} tools vía HTTP de {}", tools.size(), server.getName());
+                        return tools;
+                    }
+                    return Collections.<Map<String, Object>>emptyList();
+                })
+                .orElse(Collections.emptyList());
+    }
+
+    public Optional<JsonNode> requestToolsList(McpServer server) {
         try {
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("jsonrpc", "2.0");
@@ -139,17 +154,9 @@ public class McpToolService {
                 JsonNode rootNode = objectMapper.readTree(responseText);
                 if (!rootNode.isObject()) {
                     log.warn("Se esperaba objeto JSON de tools/list, pero se obtuvo: {}", rootNode);
-                    return Collections.emptyList();
+                    return Optional.empty();
                 }
-                Map<String, Object> responseJson = objectMapper.convertValue(rootNode, Map.class);
-                if (responseJson.containsKey("result") && responseJson.get("result") instanceof Map) {
-                    Map<String, Object> result = (Map<String, Object>) responseJson.get("result");
-                    if (result.containsKey("tools") && result.get("tools") instanceof List) {
-                        List<Map<String, Object>> tools = (List<Map<String, Object>>) result.get("tools");
-                        log.info("Se recuperaron {} tools vía HTTP de {}", tools.size(), server.getName());
-                        return tools;
-                    }
-                }
+                return Optional.of(rootNode);
             } else {
                 log.warn("Error HTTP desde tools/list en {}: status={}, body={}",
                         server.getName(), response.statusCode(), responseText);
@@ -157,7 +164,7 @@ public class McpToolService {
         } catch (Exception e) {
             log.warn("Fallo al obtener tools vía HTTP de {}: {}", server.getName(), e.getMessage());
         }
-        return Collections.emptyList();
+        return Optional.empty();
     }
 
     public String selectBestTool(String message, McpServer server) {

@@ -2,6 +2,7 @@ package org.shark.mentor.mcp.service;
 
 import org.shark.mentor.mcp.config.McpProperties;
 import org.shark.mentor.mcp.model.McpServer;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -31,13 +32,15 @@ public class McpServerService {
     private final McpProperties properties;
     private final RestTemplate restTemplate;
     private final HttpClient httpClient;
+    private final McpToolService mcpToolService;
 
-    public McpServerService(McpProperties properties) {
+    public McpServerService(McpProperties properties, @Lazy McpToolService mcpToolService) {
         this.properties = properties;
         this.restTemplate = new RestTemplate();
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
+        this.mcpToolService = mcpToolService;
 
         loadServersFromJson();
         loadServersFromConfig();
@@ -280,22 +283,12 @@ public class McpServerService {
                 } else if (rootResponse.statusCode() == 404) {
                     // Si la raíz tampoco existe, intentar un endpoint funcional
                     log.info("Root endpoint returned 404, trying tools list endpoint for {}", server.getUrl());
-                    String toolsUrl = server.getUrl() + "/mcp/tools/list";
-                    HttpRequest toolsRequest = HttpRequest.newBuilder()
-                            .uri(URI.create(toolsUrl))
-                            .timeout(Duration.ofSeconds(5))
-                            .GET()
-                            .build();
-
-                    HttpResponse<String> toolsResponse = httpClient.send(toolsRequest, HttpResponse.BodyHandlers.ofString());
-
-                    if (toolsResponse.statusCode() >= 200 && toolsResponse.statusCode() < 300) {
-                        log.info("HTTP connection successful to tools endpoint {}", toolsUrl);
+                    if (mcpToolService.requestToolsList(server).isPresent()) {
+                        log.info("HTTP connection successful to tools endpoint {}/mcp/tools/list", server.getUrl());
                         server.setStatus("CONNECTED");
                         server.setLastError(null);
                     } else {
-                        String errorMsg = String.format("HTTP %d from tools endpoint", toolsResponse.statusCode());
-                        log.warn("HTTP connection returned status {} for {}", toolsResponse.statusCode(), toolsUrl);
+                        String errorMsg = "HTTP error from tools endpoint";
                         server.setStatus("ERROR");
                         server.setLastError(errorMsg);
                     }
