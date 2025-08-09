@@ -262,8 +262,8 @@ public class McpServerService {
                 log.info("HTTP connection successful to {}", server.getUrl());
                 server.setStatus("CONNECTED");
                 server.setLastError(null);
-            } else if (response.statusCode() == 404 || response.statusCode() == 400) {
-                // Si /mcp/health no existe, intentar la raíz
+            } else if (response.statusCode() == 404 || response.statusCode() == 405 || response.statusCode() == 400) {
+                // Si /mcp/health no existe o no permite GET, intentar la raíz
                 log.info("Health endpoint not found, trying root endpoint for {}", server.getUrl());
                 HttpRequest rootRequest = HttpRequest.newBuilder()
                         .uri(URI.create(server.getUrl()))
@@ -277,9 +277,9 @@ public class McpServerService {
                     log.info("HTTP connection successful to root endpoint {}", server.getUrl());
                     server.setStatus("CONNECTED");
                     server.setLastError(null);
-                } else if (rootResponse.statusCode() == 404) {
-                    // Si la raíz tampoco existe, intentar un endpoint funcional
-                    log.info("Root endpoint returned 404, trying tools list endpoint for {}", server.getUrl());
+                } else if (rootResponse.statusCode() == 404 || rootResponse.statusCode() == 405) {
+                    // Si la raíz tampoco existe o no permite GET, intentar un endpoint funcional
+                    log.info("Root endpoint returned {} , trying tools list endpoint for {}", rootResponse.statusCode(), server.getUrl());
                     String toolsUrl = server.getUrl() + "/mcp/tools/list";
                     HttpRequest toolsRequest = HttpRequest.newBuilder()
                             .uri(URI.create(toolsUrl))
