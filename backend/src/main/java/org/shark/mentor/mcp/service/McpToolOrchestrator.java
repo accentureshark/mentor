@@ -8,12 +8,6 @@ import org.shark.mentor.mcp.model.McpServer;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.*;
 
 /**
@@ -27,6 +21,7 @@ public class McpToolOrchestrator {
 
     private final McpServerService mcpServerService;
     private final McpToolService mcpToolService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * Executes an MCP tool based on the user's message
@@ -54,8 +49,8 @@ public class McpToolOrchestrator {
 
             log.info("Selected tool '{}' for message: {}", toolName, userMessage);
 
-            // Ejecuta la tool seleccionada
-            return executeSelectedTool(server, toolName, arguments);
+            Map<String, Object> toolCall = prepareToolCall(toolSchema, arguments);
+            return scheduleToolCall(server, toolCall);
 
         } catch (Exception e) {
             log.error("Error executing MCP tool for server {}: {}", server.getName(), e.getMessage(), e);
@@ -63,7 +58,12 @@ public class McpToolOrchestrator {
         }
     }
 
-    private String executeSelectedTool(McpServer server, String toolName, Map<String, Object> arguments) throws Exception {
+    public String scheduleToolCall(McpServer server, JsonNode toolCall) throws Exception {
+        Map<String, Object> callMap = objectMapper.convertValue(toolCall, Map.class);
+        return scheduleToolCall(server, callMap);
+    }
+
+    public String scheduleToolCall(McpServer server, Map<String, Object> toolCall) throws Exception {
         String protocol = extractProtocol(server.getUrl());
 
         if ("stdio".equalsIgnoreCase(protocol)) {
@@ -72,10 +72,31 @@ public class McpToolOrchestrator {
             if (stdin == null || stdout == null) {
                 throw new IllegalStateException("STDIO streams not available for server: " + server.getId());
             }
-            return mcpToolService.callToolViaStdio(stdin, stdout, toolName, arguments);
+            return mcpToolService.callToolViaStdio(stdin, stdout, toolCall);
         } else {
-            return mcpToolService.callToolViaHttp(server, toolName, arguments);
+            return mcpToolService.callToolViaHttp(server, toolCall);
         }
+    }
+
+    public Map<String, Object> prepareToolCall(Map<String, Object> toolSchema, Map<String, Object> arguments) {
+        Map<String, Object> inputSchema = (Map<String, Object>) (toolSchema.get("inputSchema") != null ?
+                toolSchema.get("inputSchema") : toolSchema.get("input_schema"));
+        Map<String, Object> properties = inputSchema != null ? (Map<String, Object>) inputSchema.get("properties") : Collections.emptyMap();
+        Map<String, Object> filteredArgs = new HashMap<>();
+        for (String key : properties.keySet()) {
+            if (arguments.containsKey(key)) {
+                filteredArgs.put(key, arguments.get(key));
+            }
+        }
+        Map<String, Object> params = new HashMap<>();
+        params.put("name", toolSchema.get("name"));
+        params.put("arguments", filteredArgs);
+        Map<String, Object> call = new HashMap<>();
+        call.put("jsonrpc", "2.0");
+        call.put("id", UUID.randomUUID().toString());
+        call.put("method", "tools/call");
+        call.put("params", params);
+        return call;
     }
 
     private String extractProtocol(String url) {
