@@ -268,6 +268,21 @@ public class McpToolService {
         return response.body();
     }
 
+    public String callToolViaHttp(McpServer server, Map<String, Object> toolCall) throws IOException, InterruptedException {
+        String json = objectMapper.writeValueAsString(toolCall);
+        log.debug("Sending tool call via HTTP: {}", json);
+        HttpRequest httpRequest = HttpRequest.newBuilder()
+                .uri(URI.create(server.getUrl() + "/mcp"))
+                .timeout(Duration.ofSeconds(10))
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(json))
+                .build();
+        HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+        log.debug("Respuesta de llamada HTTP: {}", response.body());
+        return response.body();
+    }
+
     public String callToolViaStdio(OutputStream stdin, InputStream stdout, String toolName, Map<String, Object> arguments) throws IOException {
         log.info("Calling tool '{}' via stdio with arguments: {}", toolName, arguments);
         Map<String, Object> toolCall = Map.of(
@@ -279,6 +294,42 @@ public class McpToolService {
                         "arguments", arguments
                 )
         );
+        String json = objectMapper.writeValueAsString(toolCall);
+        log.debug("Sending tool call via stdio: {}", json);
+        byte[] jsonBytes = json.getBytes(StandardCharsets.UTF_8);
+        String header = "Content-Length: " + jsonBytes.length + "\r\n\r\n";
+        stdin.write(header.getBytes(StandardCharsets.UTF_8));
+        stdin.write(jsonBytes);
+        stdin.flush();
+
+        BufferedReader reader = new BufferedReader(new InputStreamReader(stdout, StandardCharsets.UTF_8));
+        int contentLength = -1;
+        String line;
+        while ((line = reader.readLine()) != null) {
+            if (line.isEmpty()) {
+                break;
+            }
+            if (line.toLowerCase().startsWith("content-length:")) {
+                contentLength = Integer.parseInt(line.substring("content-length:".length()).trim());
+            }
+        }
+        if (contentLength < 0) {
+            log.warn("Content-Length not found in stdio response");
+            return null;
+        }
+        char[] buf = new char[contentLength];
+        int read = 0;
+        while (read < contentLength) {
+            int n = reader.read(buf, read, contentLength - read);
+            if (n == -1) break;
+            read += n;
+        }
+        String result = new String(buf, 0, read);
+        log.debug("Respuesta de llamada stdio: {}", result);
+        return result;
+    }
+
+    public String callToolViaStdio(OutputStream stdin, InputStream stdout, Map<String, Object> toolCall) throws IOException {
         String json = objectMapper.writeValueAsString(toolCall);
         log.debug("Sending tool call via stdio: {}", json);
         byte[] jsonBytes = json.getBytes(StandardCharsets.UTF_8);
