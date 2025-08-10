@@ -50,7 +50,8 @@ public class McpToolOrchestrator {
                     .filter(t -> toolName.equals(t.get("name")))
                     .findFirst()
                     .orElse(availableTools.get(0));
-            Map<String, Object> arguments = mcpToolService.extractToolArguments(userMessage, toolName);
+            Map<String, Object> arguments = mcpToolService.extractToolArguments(userMessage, toolName,
+                    (Map<String, Object>) toolSchema.get("inputSchema"));
 
             log.info("Selected tool '{}' for message: {}", toolName, userMessage);
 
@@ -72,7 +73,7 @@ public class McpToolOrchestrator {
             if (stdin == null || stdout == null) {
                 throw new IllegalStateException("STDIO streams not available for server: " + server.getId());
             }
-            return mcpToolService.callToolViaStdio(stdin, stdout, toolName, arguments);
+            return mcpToolService.callToolViaStdio(server, stdin, stdout, toolName, arguments);
         } else {
             return mcpToolService.callToolViaHttp(server, toolName, arguments);
         }
