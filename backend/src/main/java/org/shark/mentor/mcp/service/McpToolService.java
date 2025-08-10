@@ -21,12 +21,14 @@ public class McpToolService {
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final McpServerService mcpServerService;
+    private final LlmService llmService;
 
-    public McpToolService(McpServerService mcpServerService) {
+    public McpToolService(McpServerService mcpServerService, LlmService llmService) {
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
         this.mcpServerService = mcpServerService;
+        this.llmService = llmService;
     }
 
     public List<Map<String, Object>> getTools(McpServer server) {
@@ -46,6 +48,25 @@ public class McpToolService {
         }
         log.info("Tools encontradas para el servidor {}: {}", server.getName(), tools);
         return tools;
+    }
+
+    /**
+     * Use an LLM to schedule the appropriate tool call based on the user's message
+     * and the available tools. The LLM must return a JSON-RPC 2.0 object ready
+     * to be sent to the MCP server.
+     */
+    public Map<String, Object> scheduleToolCall(String message, List<Map<String, Object>> tools) {
+        try {
+            String toolsJson = objectMapper.writeValueAsString(tools);
+            String question = "Given the user request: '" + message +
+                    "' select the best tool from the provided list and " +
+                    "return ONLY a valid JSON object representing a JSON-RPC 2.0 'tools/call' request.";
+            String response = llmService.generate(question, toolsJson);
+            return objectMapper.readValue(response, Map.class);
+        } catch (Exception e) {
+            log.error("Error scheduling tool call: {}", e.getMessage(), e);
+            return null;
+        }
     }
 
     private String extractProtocol(String url) {
@@ -242,9 +263,8 @@ public class McpToolService {
         }
     }
 
-    // MCP compliant: POST a /mcp con JSON-RPC tools/call
+    // Legacy method kept for compatibility; builds JSON-RPC from name and arguments
     public String callToolViaHttp(McpServer server, String toolName, Map<String, Object> arguments) throws IOException, InterruptedException {
-        log.info("Calling tool '{}' via HTTP on server: {} with arguments: {}", toolName, server.getName(), arguments);
         Map<String, Object> toolCall = Map.of(
                 "jsonrpc", "2.0",
                 "id", UUID.randomUUID().toString(),
@@ -254,8 +274,13 @@ public class McpToolService {
                         "arguments", arguments
                 )
         );
+        return callToolViaHttp(server, toolCall);
+    }
+
+    // New method: send pre-built JSON-RPC call over HTTP
+    public String callToolViaHttp(McpServer server, Map<String, Object> toolCall) throws IOException, InterruptedException {
+        log.info("Calling tool via HTTP on server {} with payload {}", server.getName(), toolCall);
         String json = objectMapper.writeValueAsString(toolCall);
-        log.debug("Sending tool call via HTTP: {}", json);
         HttpRequest httpRequest = HttpRequest.newBuilder()
                 .uri(URI.create(server.getUrl() + "/mcp"))
                 .timeout(Duration.ofSeconds(10))
@@ -268,8 +293,8 @@ public class McpToolService {
         return response.body();
     }
 
+    // Legacy method for compatibility
     public String callToolViaStdio(OutputStream stdin, InputStream stdout, String toolName, Map<String, Object> arguments) throws IOException {
-        log.info("Calling tool '{}' via stdio with arguments: {}", toolName, arguments);
         Map<String, Object> toolCall = Map.of(
                 "jsonrpc", "2.0",
                 "id", UUID.randomUUID().toString(),
@@ -279,6 +304,12 @@ public class McpToolService {
                         "arguments", arguments
                 )
         );
+        return callToolViaStdio(stdin, stdout, toolCall);
+    }
+
+    // New method: send pre-built JSON-RPC call over stdio
+    public String callToolViaStdio(OutputStream stdin, InputStream stdout, Map<String, Object> toolCall) throws IOException {
+        log.info("Calling tool via stdio with payload: {}", toolCall);
         String json = objectMapper.writeValueAsString(toolCall);
         log.debug("Sending tool call via stdio: {}", json);
         byte[] jsonBytes = json.getBytes(StandardCharsets.UTF_8);
