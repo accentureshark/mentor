@@ -159,7 +159,7 @@ public class LlmServiceEnhanced implements LlmService {
             🎭 **Genre:** [Genre]
 
             Always maintain accuracy and transparency about the limitations of the available context.
-            All responses must be in English and well formatted.
+            All responses must be in Spanish and well formatted.
             """;
     }
 }
