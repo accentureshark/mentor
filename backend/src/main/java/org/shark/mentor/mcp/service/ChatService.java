@@ -387,11 +387,17 @@ public class ChatService {
             }
 
             // Determine the appropriate tool based on the message
+            List<Map<String, Object>> availableTools = mcpToolService.getTools(server);
             String toolName = mcpToolService.selectBestTool(message, server);
-            Map<String, Object> toolArgs = mcpToolService.extractToolArguments(message, toolName);
+            Map<String, Object> toolSchema = availableTools.stream()
+                    .filter(t -> toolName.equals(t.get("name")))
+                    .findFirst()
+                    .orElse(null);
+            Map<String, Object> toolArgs = mcpToolService.extractToolArguments(message, toolName,
+                    toolSchema != null ? (Map<String, Object>) toolSchema.get("inputSchema") : null);
 
             // Use tools/call with the selected tool
-            String response = mcpToolService.callToolViaStdio(stdin, stdout, toolName, toolArgs);
+            String response = mcpToolService.callToolViaStdio(server, stdin, stdout, toolName, toolArgs);
 
             log.info("Stdio response from {}: {}", server.getName(), response);
             if (response == null) {
@@ -427,7 +433,12 @@ public class ChatService {
             log.debug("Selected tool for '{}': {}", message, selectedTool);
 
             // Extract arguments for the tool
-            Map<String, Object> toolArgs = mcpToolService.extractToolArguments(message, selectedTool);
+            Map<String, Object> toolSchema = availableTools.stream()
+                    .filter(t -> selectedTool.equals(t.get("name")))
+                    .findFirst()
+                    .orElse(null);
+            Map<String, Object> toolArgs = mcpToolService.extractToolArguments(message, selectedTool,
+                    toolSchema != null ? (Map<String, Object>) toolSchema.get("inputSchema") : null);
             log.debug("Extracted arguments: {}", toolArgs);
 
             // Use tools/call with the selected tool

@@ -194,7 +194,7 @@ public class McpToolService {
         return fallback;
     }
 
-    public Map<String, Object> extractToolArguments(String message, String toolName) {
+    public Map<String, Object> extractToolArguments(String message, String toolName, Map<String, Object> inputSchema) {
         log.info("Extracting arguments for tool '{}' from message: '{}'", toolName, message);
         Map<String, Object> args = new HashMap<>();
         switch (toolName) {
@@ -217,6 +217,12 @@ public class McpToolService {
                 break;
         }
         log.debug("Extracted arguments: {}", args);
+        if (inputSchema != null) {
+            List<String> validationErrors = validateArgumentsAgainstSchema(inputSchema, args);
+            if (!validationErrors.isEmpty()) {
+                log.warn("Extracted arguments do not satisfy schema: {}", validationErrors);
+            }
+        }
         return args;
     }
 
@@ -242,9 +248,88 @@ public class McpToolService {
         }
     }
 
+    private Map<String, Object> getInputSchema(McpServer server, String toolName) {
+        return getTools(server).stream()
+                .filter(t -> toolName.equals(t.get("name")))
+                .findFirst()
+                .map(t -> (Map<String, Object>) t.get("inputSchema"))
+                .orElse(null);
+    }
+
+    private List<String> validateArgumentsAgainstSchema(Map<String, Object> inputSchema, Map<String, Object> arguments) {
+        List<String> errors = new ArrayList<>();
+        if (inputSchema == null) {
+            return errors;
+        }
+        Map<String, Object> properties = (Map<String, Object>) inputSchema.get("properties");
+        List<String> required = (List<String>) inputSchema.get("required");
+        if (required != null) {
+            for (String field : required) {
+                if (!arguments.containsKey(field)) {
+                    errors.add("Missing required field: " + field);
+                }
+            }
+        }
+        if (properties != null) {
+            for (Map.Entry<String, Object> entry : properties.entrySet()) {
+                String field = entry.getKey();
+                Object schemaDef = entry.getValue();
+                if (!(schemaDef instanceof Map)) {
+                    continue;
+                }
+                Map<String, Object> propertySchema = (Map<String, Object>) schemaDef;
+                Object typeObj = propertySchema.get("type");
+                if (typeObj == null) {
+                    continue;
+                }
+                String expectedType = typeObj.toString();
+                if (arguments.containsKey(field)) {
+                    Object value = arguments.get(field);
+                    if (!matchesType(value, expectedType)) {
+                        errors.add("Field '" + field + "' should be of type " + expectedType);
+                    }
+                }
+            }
+        }
+        return errors;
+    }
+
+    private boolean matchesType(Object value, String expectedType) {
+        return switch (expectedType) {
+            case "string" -> value instanceof String;
+            case "integer" -> value instanceof Integer || value instanceof Long;
+            case "number" -> value instanceof Number;
+            case "boolean" -> value instanceof Boolean;
+            case "object" -> value instanceof Map;
+            case "array" -> value instanceof List;
+            default -> true;
+        };
+    }
+
+    private String buildValidationError(List<String> errors) {
+        try {
+            Map<String, Object> error = Map.of(
+                    "error", Map.of(
+                            "code", 400,
+                            "message", "Invalid arguments",
+                            "details", errors
+                    )
+            );
+            return objectMapper.writeValueAsString(error);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to serialize validation error", e);
+        }
+    }
+
     // MCP compliant: POST a /mcp con JSON-RPC tools/call
     public String callToolViaHttp(McpServer server, String toolName, Map<String, Object> arguments) throws IOException, InterruptedException {
         log.info("Calling tool '{}' via HTTP on server: {} with arguments: {}", toolName, server.getName(), arguments);
+        Map<String, Object> inputSchema = getInputSchema(server, toolName);
+        List<String> validationErrors = validateArgumentsAgainstSchema(inputSchema, arguments);
+        if (!validationErrors.isEmpty()) {
+            log.warn("Argument validation failed: {}", validationErrors);
+            return buildValidationError(validationErrors);
+        }
         Map<String, Object> toolCall = Map.of(
                 "jsonrpc", "2.0",
                 "id", UUID.randomUUID().toString(),
@@ -268,8 +353,14 @@ public class McpToolService {
         return response.body();
     }
 
-    public String callToolViaStdio(OutputStream stdin, InputStream stdout, String toolName, Map<String, Object> arguments) throws IOException {
+    public String callToolViaStdio(McpServer server, OutputStream stdin, InputStream stdout, String toolName, Map<String, Object> arguments) throws IOException {
         log.info("Calling tool '{}' via stdio with arguments: {}", toolName, arguments);
+        Map<String, Object> inputSchema = getInputSchema(server, toolName);
+        List<String> validationErrors = validateArgumentsAgainstSchema(inputSchema, arguments);
+        if (!validationErrors.isEmpty()) {
+            log.warn("Argument validation failed: {}", validationErrors);
+            return buildValidationError(validationErrors);
+        }
         Map<String, Object> toolCall = Map.of(
                 "jsonrpc", "2.0",
                 "id", UUID.randomUUID().toString(),
