@@ -7,7 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.shark.mentor.mcp.model.McpServer;
 import org.springframework.stereotype.Service;
 
-import java.io.*;
 import java.util.*;
 
 /**
@@ -71,16 +70,7 @@ public class McpToolOrchestrator {
     public String scheduleToolCall(McpServer server, Map<String, Object> toolCall) throws Exception {
         String protocol = extractProtocol(server.getUrl());
 
-        if ("stdio".equalsIgnoreCase(protocol)) {
-            OutputStream stdin = mcpServerService.getStdioInput(server.getId());
-            InputStream stdout = mcpServerService.getStdioOutput(server.getId());
-            if (stdin == null || stdout == null) {
-                throw new IllegalStateException("STDIO streams not available for server: " + server.getId());
-            }
-            return mcpToolService.callToolViaStdio(stdin, stdout, toolCall);
-        } else {
-            return mcpToolService.callToolViaHttp(server, toolCall);
-        }
+        return mcpToolService.callTool(server, toolCall);
     }
 
     public Map<String, Object> prepareToolCall(Map<String, Object> toolSchema, Map<String, Object> arguments) {

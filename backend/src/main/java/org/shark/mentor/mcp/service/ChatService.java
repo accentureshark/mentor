@@ -8,10 +8,6 @@ import org.shark.mentor.mcp.model.McpRequest;
 import org.shark.mentor.mcp.model.McpServer;
 import org.springframework.stereotype.Service;
 
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.http.HttpClient;
-import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -163,23 +159,23 @@ public class ChatService {
 
         // Retrieve available tools
         List<Map<String, Object>> tools = mcpToolService.getTools(server);
-        
-//        if (!tools.isEmpty()) {
-//            messageContent.append("🛠️ **Herramientas disponibles en ").append(server.getName()).append(":**\n\n");
-//            for (Map<String, Object> tool : tools) {
-//                Object nameObj = tool.get("name");
-//                Object descObj = tool.get("description");
-//                if (nameObj != null) {
-//                    messageContent.append("• **").append(nameObj.toString()).append("**");
-//                    if (descObj != null) {
-//                        messageContent.append(": ").append(descObj.toString());
-//                    }
-//                    messageContent.append("\n");
-//                }
-//            }
-//            messageContent.append("\n");
-//        }
-        
+
+        if (!tools.isEmpty()) {
+            messageContent.append("🛠️ **Herramientas disponibles en ").append(server.getName()).append(":**\n\n");
+            for (Map<String, Object> tool : tools) {
+                Object nameObj = tool.get("name");
+                Object descObj = tool.get("description");
+                if (nameObj != null) {
+                    messageContent.append("• **").append(nameObj.toString()).append("**");
+                    if (descObj != null) {
+                        messageContent.append(": ").append(descObj.toString());
+                    }
+                    messageContent.append("\n");
+                }
+            }
+            messageContent.append("\n");
+        }
+
         messageContent.append("What is your question?");
         
         ChatMessage initialMessage = ChatMessage.builder()
@@ -377,22 +373,10 @@ public class ChatService {
 
     private String sendMessageViaStdio(McpServer server, String message) {
         try {
-            Process process = mcpServerService.getStdioProcess(server.getId());
-            OutputStream stdin = mcpServerService.getStdioInput(server.getId());
-            InputStream stdout = mcpServerService.getStdioOutput(server.getId());
-
-            if (process == null || stdin == null || stdout == null) {
-                log.error("STDIO process/streams not found for server {}", server.getId());
-                return "Error: STDIO process not available";
-            }
-
             // Determine the appropriate tool based on the message
             String toolName = mcpToolService.selectBestTool(message, server);
             Map<String, Object> toolArgs = mcpToolService.extractToolArguments(message, toolName);
-
-            // Use tools/call with the selected tool
-            String response = mcpToolService.callToolViaStdio(stdin, stdout, toolName, toolArgs);
-
+            String response = mcpToolService.callTool(server, toolName, toolArgs);
             log.info("Stdio response from {}: {}", server.getName(), response);
             if (response == null) {
                 return "Error: No response from MCP server";
@@ -430,8 +414,7 @@ public class ChatService {
             Map<String, Object> toolArgs = mcpToolService.extractToolArguments(message, selectedTool);
             log.debug("Extracted arguments: {}", toolArgs);
 
-            // Use tools/call with the selected tool
-            String response = mcpToolService.callToolViaHttp(server, selectedTool, toolArgs);
+            String response = mcpToolService.callTool(server, selectedTool, toolArgs);
 
             JsonNode root = objectMapper.readTree(response);
             if (root.has("result")) {

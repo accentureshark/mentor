@@ -81,7 +81,7 @@ class McpToolParameterExtractionTest {
         );
         
         // When LLM tries to extract the query parameter
-        when(llmService.generate(anyString(), anyString())).thenReturn("SELECT * FROM users");
+        when(llmService.generate(anyString(), anyString())).thenReturn("{\"query\":\"SELECT * FROM users\"}");
         
         // Create a custom McpToolService that we can control
         McpToolService testService = new McpToolService(mcpServerService, llmService) {
@@ -172,12 +172,12 @@ class McpToolParameterExtractionTest {
         };
         
         // Test with LLM returning valid value
-        when(llmService.generate(anyString(), anyString())).thenReturn("SELECT * FROM users");
+        when(llmService.generate(anyString(), anyString())).thenReturn("{\"query\":\"SELECT * FROM users\"}");
         Map<String, Object> args = testService.extractToolArguments("show all users", "query_data");
         assertEquals("SELECT * FROM users", args.get("query"));
-        
+
         // Test with LLM returning NULL
-        when(llmService.generate(anyString(), anyString())).thenReturn("NULL");
+        when(llmService.generate(anyString(), anyString())).thenReturn("{\"query\":null}");
         args = testService.extractToolArguments("show", "query_data");
         assertEquals("show", args.get("query")); // Should fallback to user message for required params
         
