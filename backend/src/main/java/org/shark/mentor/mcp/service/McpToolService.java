@@ -13,11 +13,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
 
@@ -98,9 +98,13 @@ public class McpToolService {
                 .build();
 
         HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+        log.info("Usando URL base del servidor MCP: {}", server.getUrl());
+
+        // Log del status y el cuerpo de la respuesta
+        //log.info("Respuesta HTTP de {}: status={}, body={}", url, response.statusCode(), response.body());
+
         JsonNode root = objectMapper.readTree(response.body());
 
-        // Soporta ambos formatos: array directo o dentro de un campo
         JsonNode toolsNode = null;
         if (root.isArray()) {
             toolsNode = root;
@@ -116,8 +120,7 @@ public class McpToolService {
         }
 
         if (toolsNode != null && toolsNode.isArray()) {
-            return objectMapper.convertValue(toolsNode, new TypeReference<List<Map<String, Object>>>() {
-            });
+            return objectMapper.convertValue(toolsNode, new TypeReference<List<Map<String, Object>>>() {});
         } else {
             log.warn("No se encontró un array de tools en la respuesta: {}", response.body());
             return Collections.emptyList();
@@ -211,8 +214,8 @@ public class McpToolService {
     /**
      * Extrae los argumentos requeridos para la tool usando LLM y el esquema.
      */
-    public Map<String, Object> extractToolArguments(String userMessage, String toolName) {
-        Map<String, Object> toolSchema = getToolSchemaByName(toolName);
+    public Map<String, Object> extractToolArguments(String userMessage, String toolName, McpServer server) {
+        Map<String, Object> toolSchema = getToolSchemaByName(toolName, server);
         if (toolSchema == null) {
             log.warn("Tool schema not found for tool: {}", toolName);
             return Collections.emptyMap();
@@ -238,54 +241,26 @@ public class McpToolService {
             requiredParams = Collections.emptyList();
         }
 
-        // Construir un único prompt para extraer todos los argumentos
-        StringBuilder prompt = new StringBuilder();
-        prompt.append("Extract the values for the following parameters from the user message.\\n");
-        prompt.append("Return a JSON object with the parameters as keys. Use null when a value cannot be determined.\\n");
-        prompt.append("User message: ").append(userMessage).append("\\n");
-        prompt.append("Parameters schema: ").append(objectMapper.valueToTree(properties).toString()).append("\\n");
-        prompt.append("JSON response: ");
-
-        String llmResponse = llmService.generate(prompt.toString(), "{}");
-
-        Map<String, Object> extracted;
-        try {
-            extracted = objectMapper.readValue(llmResponse, new TypeReference<Map<String, Object>>() {});
-        } catch (Exception e) {
-            log.warn("Failed to parse LLM arguments for tool {}: {}", toolName, e.getMessage());
-            return Collections.emptyMap();
-        }
-
-        // Fallback para parámetros requeridos si el LLM no los proporciona
-        for (String req : requiredParams) {
-            Object val = extracted.get(req);
-            if (val == null || (val instanceof String && ((String) val).trim().isEmpty())) {
-                if (userMessage != null && userMessage.trim().split("\\s+").length <= 5) {
-                    extracted.put(req, userMessage.trim());
-                }
+        Map<String, Object> args = new HashMap<>();
+        for (String key : properties.keySet()) {
+            Object propertySchema = properties.get(key);
+            Object value = llmExtractArgument(userMessage, key, propertySchema, requiredParams.contains(key));
+            if (value != null) {
+                args.put(key, value);
             }
         }
-
-        try {
-            Map<String, Object> validated = validateArguments(toolSchema, extracted);
-            log.debug("Extracted arguments for tool {}: {}", toolName, validated);
-            return validated;
-        } catch (IllegalArgumentException e) {
-            log.warn("Argument validation failed for tool {}: {}", toolName, e.getMessage());
-            return Collections.emptyMap();
-        }
+        log.debug("Extracted arguments for tool {}: {}", toolName, args);
+        return args;
     }
 
     /**
-     * Busca el esquema de la tool por nombre en todos los servidores conectados.
+     * Busca el esquema de la tool por nombre SOLO en el servidor especificado.
      */
-    public Map<String, Object> getToolSchemaByName(String toolName) {
-        for (McpServer server : mcpServerService.getAllServers()) {
-            List<Map<String, Object>> tools = getTools(server);
-            for (Map<String, Object> tool : tools) {
-                if (toolName.equals(tool.get("name"))) {
-                    return tool;
-                }
+    public Map<String, Object> getToolSchemaByName(String toolName, McpServer server) {
+        List<Map<String, Object>> tools = getTools(server);
+        for (Map<String, Object> tool : tools) {
+            if (toolName.equals(tool.get("name"))) {
+                return tool;
             }
         }
         return null;
@@ -295,7 +270,7 @@ public class McpToolService {
      * Llama a una tool determinando automáticamente el protocolo.
      */
     public String callTool(McpServer server, String toolName, Map<String, Object> toolArgs) throws Exception {
-        Map<String, Object> toolSchema = getToolSchemaByName(toolName);
+        Map<String, Object> toolSchema = getToolSchemaByName(toolName, server);
         if (toolSchema == null) {
             throw new IllegalArgumentException("Tool no encontrada: " + toolName);
         }
@@ -458,9 +433,10 @@ public class McpToolService {
      *
      * @param userMessage the user's message
      * @param availableTools the list of tools (with schema/description)
+     * @param server the selected MCP server (never null)
      * @return Map with keys: "tool" (String) and "arguments" (Map<String, Object>)
      */
-    public Map<String, Object> inferToolAndArguments(String userMessage, List<Map<String, Object>> availableTools) {
+    public Map<String, Object> inferToolAndArguments(String userMessage, List<Map<String, Object>> availableTools, McpServer server) {
         if (availableTools == null || availableTools.isEmpty()) return null;
 
         // 1. Seleccionar la mejor tool usando el LLM y la metadata
@@ -478,12 +454,58 @@ public class McpToolService {
         toolName = extractToolNameFromLlmResponse(toolName, availableTools);
         if (toolName == null) return null;
 
-        // 2. Extraer argumentos usando el LLM y el schema de la tool
-        Map<String, Object> arguments = extractToolArguments(userMessage, toolName);
+        // 2. Extraer argumentos usando el LLM y el schema de la tool SOLO en el servidor seleccionado
+        Map<String, Object> arguments = extractToolArguments(userMessage, toolName, server);
 
         Map<String, Object> result = new HashMap<>();
         result.put("tool", toolName);
         result.put("arguments", arguments);
         return result;
+    }
+
+    /**
+     * Usa LLM para extraer el valor de un argumento específico del mensaje del usuario.
+     */
+    private Object llmExtractArgument(String userMessage, String key, Object propertySchema, boolean isRequired) {
+        // Si el parámetro no es requerido y el mensaje del usuario es muy simple, no extraer
+        if (!isRequired && (userMessage == null || userMessage.trim().length() < 3)) {
+            return null;
+        }
+
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("Extrae el valor para el parámetro '").append(key).append("' del mensaje del usuario a continuación.\n");
+        prompt.append("Esquema del parámetro: ").append(objectMapper.valueToTree(propertySchema).toPrettyString()).append("\n");
+        prompt.append("Mensaje del usuario: ").append(userMessage).append("\n");
+
+        if (isRequired) {
+            prompt.append("Este parámetro es REQUERIDO. ");
+        } else {
+            prompt.append("Este parámetro es OPCIONAL. ");
+        }
+
+        prompt.append("Si no puedes extraer un valor significativo, responde con 'NULL'.\n");
+        prompt.append("Responde ÚNICAMENTE con el valor del parámetro, sin explicaciones.\n"); // <-- Quitado el prefijo con el nombre del parámetro
+
+        String value = llmService.generate(prompt.toString(), "");
+
+        if (value == null || value.trim().isEmpty() || "NULL".equalsIgnoreCase(value.trim())) {
+            // Para parámetros requeridos, solo usar el mensaje completo como fallback si es muy simple
+            if (isRequired && userMessage != null && !userMessage.trim().isEmpty()) {
+                if (userMessage.trim().split("\\s+").length <= 5) {
+                    log.debug("Using full user message as fallback for required parameter '{}': {}", key, userMessage);
+                    return userMessage.trim();
+                }
+            }
+            return null;
+        }
+
+        // Limpiar la respuesta
+        String cleanedValue = value.trim().replaceAll("^[\"'`]+|[\"'`]+$", "");
+        // Eliminar prefijos tipo "Valor para 'query':"
+        String prefix =  key + ":";
+        if (cleanedValue.toLowerCase().startsWith(prefix.toLowerCase())) {
+            cleanedValue = cleanedValue.substring(prefix.length()).trim();
+        }
+        return cleanedValue.isEmpty() ? null : cleanedValue;
     }
 }

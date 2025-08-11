@@ -36,7 +36,7 @@ public class McpToolOrchestrator {
 
             // 2. Inferir la tool y argumentos a partir del mensaje y la metadata de tools
             // (Esto puede ser implementado usando LLM o heurística genérica, pero sin hardcode de dominio)
-            Map<String, Object> inference = mcpToolService.inferToolAndArguments(userMessage, availableTools);
+            Map<String, Object> inference = mcpToolService.inferToolAndArguments(userMessage, availableTools, server);
             if (inference == null || !inference.containsKey("tool") || !inference.containsKey("arguments")) {
                 return "No se pudo determinar la herramienta o los argumentos apropiados para la consulta.";
             }

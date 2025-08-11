@@ -375,7 +375,7 @@ public class ChatService {
         try {
             // Determine the appropriate tool based on the message
             String toolName = mcpToolService.selectBestTool(message, server);
-            Map<String, Object> toolArgs = mcpToolService.extractToolArguments(message, toolName);
+            Map<String, Object> toolArgs = mcpToolService.extractToolArguments(message, toolName, server);
             String response = mcpToolService.callTool(server, toolName, toolArgs);
             log.info("Stdio response from {}: {}", server.getName(), response);
             if (response == null) {
@@ -411,7 +411,7 @@ public class ChatService {
             log.debug("Selected tool for '{}': {}", message, selectedTool);
 
             // Extract arguments for the tool
-            Map<String, Object> toolArgs = mcpToolService.extractToolArguments(message, selectedTool);
+            Map<String, Object> toolArgs = mcpToolService.extractToolArguments(message, selectedTool, server);
             log.debug("Extracted arguments: {}", toolArgs);
 
             String response = mcpToolService.callTool(server, selectedTool, toolArgs);
