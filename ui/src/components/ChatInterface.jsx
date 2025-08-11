@@ -17,6 +17,7 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8083/a
 export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [tools, setTools] = useState([]);
   const [infoCollapsed, setInfoCollapsed] = useState(false);
@@ -83,6 +84,28 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
     }
   }, [messages]);
 
+  const handleInputChange = (e) => {
+    const value = e.target.value;
+    setInputMessage(value);
+
+    const lastWord = value.split(/\s+/).pop();
+    if (lastWord) {
+      const matches = tools
+        .map((t) => t.name)
+        .filter((name) => name.toLowerCase().startsWith(lastWord.toLowerCase()));
+      setSuggestions(matches);
+    } else {
+      setSuggestions([]);
+    }
+  };
+
+  const handleSuggestionClick = (suggestion) => {
+    const words = inputMessage.split(/\s+/);
+    words[words.length - 1] = suggestion;
+    setInputMessage(words.join(' ') + ' ');
+    setSuggestions([]);
+  };
+
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || !selectedServer || !conversationId || selectedServer.status !== 'CONNECTED' || !toolsAcknowledged || loading) return;
 
@@ -96,6 +119,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
 
     setMessages(prev => [...prev, userMessage]);
     setInputMessage('');
+    setSuggestions([]);
     setLoading(true);
 
     try {
@@ -157,6 +181,9 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
+    } else if (e.key === 'Tab' && suggestions.length > 0) {
+      e.preventDefault();
+      handleSuggestionClick(suggestions[0]);
     }
     // Allow Shift+Enter for new lines in multiline input
   };
@@ -326,7 +353,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
             <div className="chat-input-container">
               <AutocompleteTextarea
                   value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
+                  onChange={handleInputChange}
                   onKeyDown={handleKeyPress}
                   placeholder={`Type your message to ${selectedServer.name}... (Enter to send, Shift+Enter for new line)`}
                   className="chat-input-field"
@@ -342,6 +369,15 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
                   className="chat-send-button"
               />
             </div>
+            {suggestions.length > 0 && (
+              <ul className="chat-suggestions">
+                {suggestions.map((s) => (
+                  <li key={s} onClick={() => handleSuggestionClick(s)}>
+                    {s}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </Card>
       </div>
