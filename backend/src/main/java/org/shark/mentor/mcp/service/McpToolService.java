@@ -64,10 +64,25 @@ public class McpToolService {
         BufferedReader reader = new BufferedReader(new InputStreamReader(stdout));
         String line = reader.readLine();
         JsonNode root = objectMapper.readTree(line);
-        if (root.has("result")) {
-            return objectMapper.convertValue(root.get("result"), List.class);
+        JsonNode toolsNode = null;
+        if (root.isArray()) {
+            toolsNode = root;
+        } else if (root.has("result")) {
+            JsonNode result = root.get("result");
+            if (result.isArray()) {
+                toolsNode = result;
+            } else if (result.has("tools")) {
+                toolsNode = result.get("tools");
+            }
+        } else if (root.has("tools")) {
+            toolsNode = root.get("tools");
         }
-        return Collections.emptyList();
+        if (toolsNode != null && toolsNode.isArray()) {
+            return objectMapper.convertValue(toolsNode, new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
+        } else {
+            log.warn("No se encontró un array de tools en la respuesta STDIO: {}", line);
+            return Collections.emptyList();
+        }
     }
 
     public List<Map<String, Object>> getToolsViaHttp(McpServer server) throws Exception {
