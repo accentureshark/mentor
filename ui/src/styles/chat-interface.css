@@ -172,6 +172,7 @@
   border-top: 1px solid #e0e0e0;
   background: white;
   flex-shrink: 0;
+  position: relative;
 }
 
 .chat-input-container {
@@ -216,6 +217,31 @@
 .chat-send-button:disabled {
   background: #ccc;
   cursor: not-allowed;
+}
+
+.chat-suggestions {
+  position: absolute;
+  bottom: 60px;
+  left: 1rem;
+  right: 1rem;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  max-height: 150px;
+  overflow-y: auto;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  z-index: 10;
+}
+
+.chat-suggestions li {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+}
+
+.chat-suggestions li:hover {
+  background: #f0f0f0;
 }
 
 /* Empty chat state */
