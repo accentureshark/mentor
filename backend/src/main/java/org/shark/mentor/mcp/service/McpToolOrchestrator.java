@@ -28,33 +28,38 @@ public class McpToolOrchestrator {
      */
     public String executeTool(McpServer server, String userMessage) {
         try {
-            // Obtiene las tools usando el servicio centralizado
+            // 1. Obtener tools disponibles del servidor MCP
             List<Map<String, Object>> availableTools = mcpToolService.getTools(server);
-
             if (availableTools.isEmpty()) {
                 log.warn("No tools available for server: {}", server.getName());
-                return "There are no tools available on the selected MCP server.";
+                return "No hay herramientas disponibles en el servidor MCP seleccionado.";
             }
 
-            // Select the best tool (you can use the logic from McpToolService or here)
-            String toolName = mcpToolService.selectBestTool(userMessage, server);
-            if (toolName == null) {
-                return "Unable to determine the appropriate tool for your request.";
+            // 2. Inferir la tool y argumentos a partir del mensaje y la metadata de tools
+            // (Esto puede ser implementado usando LLM o heurística genérica, pero sin hardcode de dominio)
+            Map<String, Object> inference = mcpToolService.inferToolAndArguments(userMessage, availableTools);
+            if (inference == null || !inference.containsKey("tool") || !inference.containsKey("arguments")) {
+                return "No se pudo determinar la herramienta o los argumentos apropiados para la consulta.";
             }
+            String toolName = (String) inference.get("tool");
+            Map<String, Object> arguments = (Map<String, Object>) inference.get("arguments");
+
+            // 3. Buscar el schema de la tool seleccionada
             Map<String, Object> toolSchema = availableTools.stream()
                     .filter(t -> toolName.equals(t.get("name")))
                     .findFirst()
-                    .orElse(availableTools.get(0));
-            Map<String, Object> arguments = mcpToolService.extractToolArguments(userMessage, toolName);
+                    .orElse(null);
+            if (toolSchema == null) {
+                return "La herramienta seleccionada no está disponible en el servidor MCP.";
+            }
 
-            log.info("Selected tool '{}' for message: {}", toolName, userMessage);
-
+            // 4. Preparar y ejecutar la llamada a la tool
             Map<String, Object> toolCall = prepareToolCall(toolSchema, arguments);
-            return scheduleToolCall(server, toolCall);
-
+            String result = scheduleToolCall(server, toolCall);
+            return result;
         } catch (Exception e) {
-            log.error("Error executing MCP tool for server {}: {}", server.getName(), e.getMessage(), e);
-            return "Error executing the tool: " + e.getMessage();
+            log.error("Error ejecutando herramienta MCP para el servidor {}: {}", server.getName(), e.getMessage(), e);
+            return "Error ejecutando la herramienta: " + e.getMessage();
         }
     }
 

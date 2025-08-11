@@ -8,7 +8,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.shark.mentor.mcp.model.McpServer;
 import org.springframework.stereotype.Service;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -96,7 +99,8 @@ public class McpToolService {
         }
 
         if (toolsNode != null && toolsNode.isArray()) {
-            return objectMapper.convertValue(toolsNode, new TypeReference<List<Map<String, Object>>>() {});
+            return objectMapper.convertValue(toolsNode, new TypeReference<List<Map<String, Object>>>() {
+            });
         } else {
             log.warn("No se encontró un array de tools en la respuesta: {}", response.body());
             return Collections.emptyList();
@@ -108,23 +112,25 @@ public class McpToolService {
      */
     public String selectBestTool(String userMessage, McpServer server) {
         List<Map<String, Object>> tools = getTools(server);
+
         if (tools.isEmpty()) return null;
-        
+
         StringBuilder prompt = new StringBuilder();
-        prompt.append("You are a tool selector for an MCP (Model Context Protocol) server. ");
-        prompt.append("Given the user's message and the available tools, respond with ONLY the exact tool name.\n\n");
-        prompt.append("Available tools:\n");
+
+        prompt.append("Eres un selector de herramientas para un servidor MCP (Model Context Protocol). ");
+        prompt.append("Dado el mensaje del usuario y las herramientas disponibles, responde ÚNICAMENTE con el nombre exacto de la herramienta.\n\n");
+        prompt.append("Herramientas disponibles:\n");
         for (Map<String, Object> tool : tools) {
             prompt.append("- ").append(tool.get("name")).append(": ").append(tool.get("description")).append("\n");
         }
-        prompt.append("\nUser message: ").append(userMessage).append("\n");
-        prompt.append("Important: Respond with ONLY the tool name, nothing else. No emojis, no formatting, no explanations.\n");
-        prompt.append("Tool name: ");
-        
+        prompt.append("\nMensaje del usuario: ").append(userMessage).append("\n");
+        prompt.append("Importante: Responde ÚNICAMENTE con el nombre de la herramienta, nada más. Sin emojis, sin formato, sin explicaciones.\n");
+        prompt.append("Nombre de la herramienta: ");
+
         String toolName = llmService.generate(prompt.toString(), "");
         return extractToolNameFromLlmResponse(toolName, tools);
     }
-    
+
     /**
      * Extrae el nombre de herramienta real de la respuesta del LLM, manejando respuestas formateadas.
      */
@@ -132,10 +138,10 @@ public class McpToolService {
         if (llmResponse == null || llmResponse.trim().isEmpty()) {
             return null;
         }
-        
+
         // Limpiar respuesta básica
         String cleaned = llmResponse.trim().replaceAll("[\"'`]", "");
-        
+
         // Crear un set de nombres de herramientas disponibles para matching rápido
         Set<String> availableToolNames = new HashSet<>();
         for (Map<String, Object> tool : availableTools) {
@@ -144,12 +150,12 @@ public class McpToolService {
                 availableToolNames.add(toolName);
             }
         }
-        
+
         // Caso 1: La respuesta ya es un nombre de herramienta válido
         if (availableToolNames.contains(cleaned)) {
             return cleaned;
         }
-        
+
         // Caso 2: La respuesta contiene formatting (ej: "📁 **list_tables**")
         // Buscar coincidencias de nombres de herramientas en la respuesta
         for (String toolName : availableToolNames) {
@@ -157,7 +163,7 @@ public class McpToolService {
                 return toolName;
             }
         }
-        
+
         // Caso 3: Intentar extraer usando regex para patrones comunes
         // Patrón para **nombre_herramienta**
         java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\\*\\*([a-zA-Z_][a-zA-Z0-9_]*)\\*\\*");
@@ -168,7 +174,7 @@ public class McpToolService {
                 return extracted;
             }
         }
-        
+
         // Caso 4: Buscar palabras individuales que coincidan con nombres de herramientas
         String[] words = cleaned.split("\\s+");
         for (String word : words) {
@@ -177,11 +183,11 @@ public class McpToolService {
                 return cleanWord;
             }
         }
-        
+
         // Si no se encuentra coincidencia, devolver la primera herramienta como fallback
-        log.warn("Could not extract valid tool name from LLM response: '{}'. Available tools: {}. Using first available tool as fallback.", 
-                 llmResponse, availableToolNames);
-        
+        log.warn("Could not extract valid tool name from LLM response: '{}'. Available tools: {}. Using first available tool as fallback.",
+                llmResponse, availableToolNames);
+
         return availableTools.isEmpty() ? null : (String) availableTools.get(0).get("name");
     }
 
@@ -194,29 +200,29 @@ public class McpToolService {
             log.warn("Tool schema not found for tool: {}", toolName);
             return Collections.emptyMap();
         }
-        
+
         Map<String, Object> inputSchema = (Map<String, Object>) (toolSchema.get("inputSchema") != null ?
                 toolSchema.get("inputSchema") : toolSchema.get("input_schema"));
-        
+
         if (inputSchema == null) {
             log.debug("No input schema found for tool: {}", toolName);
             return Collections.emptyMap();
         }
-        
+
         Map<String, Object> properties = (Map<String, Object>) inputSchema.get("properties");
         if (properties == null || properties.isEmpty()) {
             log.debug("Tool {} has no parameters", toolName);
             return Collections.emptyMap();
         }
-        
+
         // Obtener lista de parámetros requeridos
         List<String> requiredParams = (List<String>) inputSchema.get("required");
         if (requiredParams == null) {
             requiredParams = Collections.emptyList();
         }
-        
+
         Map<String, Object> args = new HashMap<>();
-        
+
         // Solo extraer argumentos para parámetros que realmente existen en el schema
         for (String key : properties.keySet()) {
             Object propertySchema = properties.get(key);
@@ -225,7 +231,7 @@ public class McpToolService {
                 args.put(key, value);
             }
         }
-        
+
         log.debug("Extracted arguments for tool {}: {}", toolName, args);
         return args;
     }
@@ -253,24 +259,24 @@ public class McpToolService {
         if (!isRequired && (userMessage == null || userMessage.trim().length() < 3)) {
             return null;
         }
-        
+
         StringBuilder prompt = new StringBuilder();
         prompt.append("Extract the value for the parameter '").append(key).append("' from the user message below.\n");
         prompt.append("Parameter schema: ").append(objectMapper.valueToTree(propertySchema).toPrettyString()).append("\n");
         prompt.append("User message: ").append(userMessage).append("\n");
-        
+
         if (isRequired) {
             prompt.append("This parameter is REQUIRED. ");
         } else {
             prompt.append("This parameter is OPTIONAL. ");
         }
-        
+
         prompt.append("If you cannot extract a meaningful value, respond with 'NULL'.\n");
         prompt.append("Respond with ONLY the parameter value, no explanations:\n");
         prompt.append("Value for '").append(key).append("': ");
-        
+
         String value = llmService.generate(prompt.toString(), "");
-        
+
         if (value == null || value.trim().isEmpty() || "NULL".equalsIgnoreCase(value.trim())) {
             // Para parámetros requeridos, solo usar el mensaje completo como fallback si es muy simple
             if (isRequired && userMessage != null && !userMessage.trim().isEmpty()) {
@@ -282,7 +288,7 @@ public class McpToolService {
             }
             return null;
         }
-        
+
         // Limpiar la respuesta
         String cleanedValue = value.trim().replaceAll("^[\"'`]+|[\"'`]+$", "");
         return cleanedValue.isEmpty() ? null : cleanedValue;
@@ -375,5 +381,41 @@ public class McpToolService {
             return "unknown";
         }
         return url.substring(0, url.indexOf("://"));
+    }
+
+    /**
+     * Infers the best tool and its arguments for a user message, using only the available tools' metadata.
+     * This method is generic and extensible: it does not assume any domain (SQL, REST, etc).
+     * It uses the LLM to select the tool and extract arguments based on the tool's schema.
+     *
+     * @param userMessage the user's message
+     * @param availableTools the list of tools (with schema/description)
+     * @return Map with keys: "tool" (String) and "arguments" (Map<String, Object>)
+     */
+    public Map<String, Object> inferToolAndArguments(String userMessage, List<Map<String, Object>> availableTools) {
+        if (availableTools == null || availableTools.isEmpty()) return null;
+
+        // 1. Seleccionar la mejor tool usando el LLM y la metadata
+        StringBuilder toolPrompt = new StringBuilder();
+        toolPrompt.append("Eres un selector de herramientas para un cliente MCP. ");
+        toolPrompt.append("Dado el mensaje del usuario y la lista de herramientas, responde ÚNICAMENTE con el nombre exacto de la herramienta más adecuada.\n\n");
+        toolPrompt.append("Herramientas disponibles:\n");
+        for (Map<String, Object> tool : availableTools) {
+            toolPrompt.append("- ").append(tool.get("name")).append(": ").append(tool.get("description")).append("\n");
+        }
+        toolPrompt.append("\nMensaje del usuario: ").append(userMessage).append("\n");
+        toolPrompt.append("Importante: Responde ÚNICAMENTE con el nombre de la herramienta, nada más.\n");
+        toolPrompt.append("Nombre de la herramienta: ");
+        String toolName = llmService.generate(toolPrompt.toString(), "");
+        toolName = extractToolNameFromLlmResponse(toolName, availableTools);
+        if (toolName == null) return null;
+
+        // 2. Extraer argumentos usando el LLM y el schema de la tool
+        Map<String, Object> arguments = extractToolArguments(userMessage, toolName);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("tool", toolName);
+        result.put("arguments", arguments);
+        return result;
     }
 }

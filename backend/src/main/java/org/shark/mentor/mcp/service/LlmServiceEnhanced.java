@@ -14,8 +14,8 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Enhanced LLM service using langchain4j best practices for conversation management
@@ -54,13 +54,13 @@ public class LlmServiceEnhanced implements LlmService {
     public String generateWithMemory(String conversationId, String question, String context) {
         try {
             List<ChatMessage> messages = buildMessages(question, context);
-            
+
             // Use langchain4j to generate response with proper context management
             String response = chatModel.generate(messages).content().text();
-            
+
             log.debug("Generated response for conversation {}: {}", conversationId, response);
             return response;
-            
+
         } catch (Exception e) {
             log.error("Error generating LLM response for conversation {}: {}", conversationId, e.getMessage(), e);
             return "Error generating response: " + e.getMessage();
@@ -71,8 +71,8 @@ public class LlmServiceEnhanced implements LlmService {
      * Get or create conversation memory for a specific conversation
      */
     private ChatMemory getConversationMemory(String conversationId) {
-        return conversationMemories.computeIfAbsent(conversationId, 
-            k -> MessageWindowChatMemory.withMaxMessages(20));
+        return conversationMemories.computeIfAbsent(conversationId,
+                k -> MessageWindowChatMemory.withMaxMessages(20));
     }
 
     /**
@@ -88,20 +88,20 @@ public class LlmServiceEnhanced implements LlmService {
      */
     private List<ChatMessage> buildMessages(String question, String context) {
         List<ChatMessage> messages = new ArrayList<>();
-        
+
         // System message defining MCP-compliant behavior
         String systemPrompt = buildSystemPrompt();
         messages.add(SystemMessage.from(systemPrompt));
-        
+
         // Add context as system information if available
         if (context != null && !context.isBlank()) {
             String contextPrompt = buildContextPrompt(context, question);
             messages.add(SystemMessage.from(contextPrompt));
         }
-        
+
         // User question
         messages.add(UserMessage.from(question));
-        
+
         return messages;
     }
 
@@ -110,21 +110,19 @@ public class LlmServiceEnhanced implements LlmService {
      */
     private String buildContextPrompt(String context, String question) {
         StringBuilder prompt = new StringBuilder();
-        prompt.append("MCP SERVER CONTEXT:\n");
+        prompt.append("CONTEXTO DEL SERVIDOR MCP:\n");
         prompt.append(context);
-        prompt.append("\n\nSPECIFIC FORMATTING INSTRUCTIONS:\n");
+        prompt.append("\n\nINSTRUCCIONES ESPECÍFICAS DE FORMATO:\n");
 
+        prompt.append("""
+            Organiza la información de forma clara con:
+            - Títulos descriptivos con emojis apropiados
+            - Información estructurada en listas
+            - Uso de markdown para el formato
+            - Separación clara entre los elementos
+            """);
 
-            prompt.append("""
-                Organize the information clearly with:
-                - Descriptive titles with appropriate emojis
-                - Information structured in lists
-                - Use of markdown for formatting
-                - Clear separation between elements
-                """);
-
-
-        prompt.append("\nAlways end with: 💡 *Information provided by [server name]*");
+        prompt.append("\nFinaliza siempre con: 💡 *Información proporcionada por [nombre del servidor]*");
         return prompt.toString();
     }
 
@@ -133,33 +131,33 @@ public class LlmServiceEnhanced implements LlmService {
      */
     private String buildSystemPrompt() {
         return """
-            You are a helpful assistant that works with MCP (Model Context Protocol) servers.
-
-            Important guidelines:
-            1. Respond ONLY using information provided in the context of MCP servers
-            2. Do not infer or add information that is not explicitly indicated in the context
-            3. If the context is insufficient to answer the question, clearly state what information is missing
-            4. Be precise and factual in your responses
-            5. When relevant, mention which MCP server provided the information
-            6. ALWAYS respond in Spanish, regardless of the language of the question
-
-            RESPONSE FORMAT:
-            - Use clear titles and subtitles with appropriate emojis
-            - For movies: 🎬 title, 📅 year, ⭐ rating, 📝 description
-            - For files: 📁 name, 📏 size, 📅 date
-            - For code/GitHub: 💻 repository, 🔧 function, 📊 status
-            - Organize information in numbered or bulleted lists
-            - Use proper spacing between sections
-            - If there are multiple results, list them clearly
-
-            Example for movies:
-            🎬 **[Movie Title]** (📅 Year)
-            ⭐ Rating: X.X/10
-            📝 **Synopsis:** [Description]
-            🎭 **Genre:** [Genre]
-
-            Always maintain accuracy and transparency about the limitations of the available context.
-            All responses must be in English and well formatted.
-            """;
+                Eres un asistente útil que trabaja con servidores MCP (Model Context Protocol).
+                
+                Pautas importantes:
+                1. Responde ÚNICAMENTE usando la información proporcionada en el contexto de los servidores MCP
+                2. No infieras ni agregues información que no esté explícitamente indicada en el contexto
+                3. Si el contexto es insuficiente para responder la pregunta, indica claramente qué información falta
+                4. Sé preciso y objetivo en tus respuestas
+                5. Cuando sea relevante, menciona qué servidor MCP proporcionó la información
+                6. RESPONDE SIEMPRE en español, sin importar el idioma de la pregunta
+                
+                FORMATO DE RESPUESTA:
+                - Usa títulos y subtítulos claros con emojis apropiados
+                - Para películas: 🎬 título, 📅 año, ⭐ calificación, 📝 descripción
+                - Para archivos: 📁 nombre, 📏 tamaño, 📅 fecha
+                - Para código/GitHub: 💻 repositorio, 🔧 función, 📊 estado
+                - Organiza la información en listas numeradas o con viñetas
+                - Usa un espaciado adecuado entre secciones
+                - Si hay múltiples resultados, enuméralos claramente
+                
+                Ejemplo para películas:
+                🎬 **[Título de la película]** (📅 Año)
+                ⭐ Calificación: X.X/10
+                📝 **Sinopsis:** [Descripción]
+                🎭 **Género:** [Género]
+                
+                Mantén siempre la precisión y transparencia sobre las limitaciones del contexto disponible.
+                Todas las respuestas deben estar en español y bien formateadas.
+                """;
     }
 }
