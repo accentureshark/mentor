@@ -9,9 +9,11 @@ import org.shark.mentor.mcp.model.McpServer;
 import org.springframework.stereotype.Service;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -199,11 +201,11 @@ public class McpToolService {
             }
         }
 
-        // Si no se encuentra coincidencia, devolver la primera herramienta como fallback
-        log.warn("Could not extract valid tool name from LLM response: '{}'. Available tools: {}. Using first available tool as fallback.",
+        // Si no se encuentra coincidencia, devolver null en lugar de usar la primera herramienta
+        log.warn("Could not extract valid tool name from LLM response: '{}'. Available tools: {}",
                 llmResponse, availableToolNames);
 
-        return availableTools.isEmpty() ? null : (String) availableTools.get(0).get("name");
+        return null;
     }
 
     /**
@@ -236,19 +238,42 @@ public class McpToolService {
             requiredParams = Collections.emptyList();
         }
 
-        Map<String, Object> args = new HashMap<>();
+        // Construir un único prompt para extraer todos los argumentos
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("Extract the values for the following parameters from the user message.\\n");
+        prompt.append("Return a JSON object with the parameters as keys. Use null when a value cannot be determined.\\n");
+        prompt.append("User message: ").append(userMessage).append("\\n");
+        prompt.append("Parameters schema: ").append(objectMapper.valueToTree(properties).toString()).append("\\n");
+        prompt.append("JSON response: ");
 
-        // Solo extraer argumentos para parámetros que realmente existen en el schema
-        for (String key : properties.keySet()) {
-            Object propertySchema = properties.get(key);
-            Object value = llmExtractArgument(userMessage, key, propertySchema, requiredParams.contains(key));
-            if (value != null) {
-                args.put(key, value);
+        String llmResponse = llmService.generate(prompt.toString(), "{}");
+
+        Map<String, Object> extracted;
+        try {
+            extracted = objectMapper.readValue(llmResponse, new TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            log.warn("Failed to parse LLM arguments for tool {}: {}", toolName, e.getMessage());
+            return Collections.emptyMap();
+        }
+
+        // Fallback para parámetros requeridos si el LLM no los proporciona
+        for (String req : requiredParams) {
+            Object val = extracted.get(req);
+            if (val == null || (val instanceof String && ((String) val).trim().isEmpty())) {
+                if (userMessage != null && userMessage.trim().split("\\s+").length <= 5) {
+                    extracted.put(req, userMessage.trim());
+                }
             }
         }
 
-        log.debug("Extracted arguments for tool {}: {}", toolName, args);
-        return args;
+        try {
+            Map<String, Object> validated = validateArguments(toolSchema, extracted);
+            log.debug("Extracted arguments for tool {}: {}", toolName, validated);
+            return validated;
+        } catch (IllegalArgumentException e) {
+            log.warn("Argument validation failed for tool {}: {}", toolName, e.getMessage());
+            return Collections.emptyMap();
+        }
     }
 
     /**
@@ -267,83 +292,49 @@ public class McpToolService {
     }
 
     /**
-     * Usa LLM para extraer el valor de un argumento específico del mensaje del usuario.
+     * Llama a una tool determinando automáticamente el protocolo.
      */
-    private Object llmExtractArgument(String userMessage, String key, Object propertySchema, boolean isRequired) {
-        // Si el parámetro no es requerido y el mensaje del usuario es muy simple, no extraer
-        if (!isRequired && (userMessage == null || userMessage.trim().length() < 3)) {
-            return null;
+    public String callTool(McpServer server, String toolName, Map<String, Object> toolArgs) throws Exception {
+        Map<String, Object> toolSchema = getToolSchemaByName(toolName);
+        if (toolSchema == null) {
+            throw new IllegalArgumentException("Tool no encontrada: " + toolName);
         }
+        Map<String, Object> validatedArgs = validateArguments(toolSchema, toolArgs);
+        Map<String, Object> call = prepareToolCall(toolSchema, validatedArgs);
+        return callTool(server, call);
+    }
 
-        StringBuilder prompt = new StringBuilder();
-        prompt.append("Extract the value for the parameter '").append(key).append("' from the user message below.\n");
-        prompt.append("Parameter schema: ").append(objectMapper.valueToTree(propertySchema).toPrettyString()).append("\n");
-        prompt.append("User message: ").append(userMessage).append("\n");
-
-        if (isRequired) {
-            prompt.append("This parameter is REQUIRED. ");
-        } else {
-            prompt.append("This parameter is OPTIONAL. ");
-        }
-
-        prompt.append("If you cannot extract a meaningful value, respond with 'NULL'.\n");
-        prompt.append("Respond with ONLY the parameter value, no explanations:\n");
-        prompt.append("Value for '").append(key).append("': ");
-
-        String value = llmService.generate(prompt.toString(), "");
-
-        if (value == null || value.trim().isEmpty() || "NULL".equalsIgnoreCase(value.trim())) {
-            // Para parámetros requeridos, solo usar el mensaje completo como fallback si es muy simple
-            if (isRequired && userMessage != null && !userMessage.trim().isEmpty()) {
-                // Solo si el mensaje es claramente el valor del parámetro
-                if (userMessage.trim().split("\\s+").length <= 5) {
-                    log.debug("Using full user message as fallback for required parameter '{}': {}", key, userMessage);
-                    return userMessage.trim();
-                }
+    /**
+     * Envía un toolCall al servidor usando HTTP o STDIO según corresponda.
+     */
+    public String callTool(McpServer server, Map<String, Object> toolCall) throws Exception {
+        String protocol = extractProtocol(server.getUrl());
+        if ("stdio".equalsIgnoreCase(protocol)) {
+            OutputStream stdin = mcpServerService.getStdioInput(server.getId());
+            InputStream stdout = mcpServerService.getStdioOutput(server.getId());
+            if (stdin == null || stdout == null) {
+                throw new IllegalStateException("STDIO streams no disponibles para el servidor: " + server.getId());
             }
-            return null;
+            return sendToolCallViaStdio(stdin, stdout, toolCall);
+        } else {
+            return sendToolCallViaHttp(server, toolCall);
         }
-
-        // Limpiar la respuesta
-        String cleanedValue = value.trim().replaceAll("^[\"'`]+|[\"'`]+$", "");
-        return cleanedValue.isEmpty() ? null : cleanedValue;
     }
 
-    /**
-     * Llama a una tool vía stdio.
-     */
-    public String callToolViaStdio(OutputStream stdin, InputStream stdout, String toolName, Map<String, Object> toolArgs) throws Exception {
-        Map<String, Object> toolSchema = getToolSchemaByName(toolName);
-        if (toolSchema == null) throw new IllegalArgumentException("Tool no encontrada: " + toolName);
-        Map<String, Object> call = prepareToolCall(toolSchema, toolArgs);
-        return callToolViaStdio(stdin, stdout, call);
-    }
-
-    /**
-     * Llama a una tool vía stdio usando el objeto toolCall completo.
-     */
-    public String callToolViaStdio(OutputStream stdin, InputStream stdout, Map<String, Object> toolCall) throws Exception {
+    private String sendToolCallViaStdio(OutputStream stdin, InputStream stdout, Map<String, Object> toolCall) throws Exception {
         String json = objectMapper.writeValueAsString(toolCall);
-        stdin.write((json + "\n").getBytes());
+        stdin.write((json + "\n").getBytes(StandardCharsets.UTF_8));
         stdin.flush();
-        BufferedReader reader = new BufferedReader(new InputStreamReader(stdout));
-        return reader.readLine();
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        int ch;
+        while ((ch = stdout.read()) != -1) {
+            if (ch == '\n') break;
+            buffer.write(ch);
+        }
+        return buffer.toString(StandardCharsets.UTF_8);
     }
 
-    /**
-     * Llama a una tool vía HTTP.
-     */
-    public String callToolViaHttp(McpServer server, String toolName, Map<String, Object> toolArgs) throws Exception {
-        Map<String, Object> toolSchema = getToolSchemaByName(toolName);
-        if (toolSchema == null) throw new IllegalArgumentException("Tool no encontrada: " + toolName);
-        Map<String, Object> call = prepareToolCall(toolSchema, toolArgs);
-        return callToolViaHttp(server, call);
-    }
-
-    /**
-     * Llama a una tool vía HTTP usando el objeto toolCall completo.
-     */
-    public String callToolViaHttp(McpServer server, Map<String, Object> toolCall) throws Exception {
+    private String sendToolCallViaHttp(McpServer server, Map<String, Object> toolCall) throws Exception {
         String url = server.getUrl() + "/mcp/tools/call";
         String body = objectMapper.writeValueAsString(toolCall);
         HttpClient client = HttpClient.newHttpClient();
@@ -352,8 +343,70 @@ public class McpToolService {
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-        return response.body();
+        HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        try (InputStream is = response.body()) {
+            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    /**
+     * Valida y normaliza los argumentos según el schema de la tool.
+     */
+    private Map<String, Object> validateArguments(Map<String, Object> toolSchema, Map<String, Object> arguments) {
+        Map<String, Object> inputSchema = (Map<String, Object>) (toolSchema.get("inputSchema") != null ?
+                toolSchema.get("inputSchema") : toolSchema.get("input_schema"));
+        Map<String, Object> properties = inputSchema != null ? (Map<String, Object>) inputSchema.get("properties") : Collections.emptyMap();
+        List<String> required = inputSchema != null && inputSchema.get("required") instanceof List ?
+                (List<String>) inputSchema.get("required") : Collections.emptyList();
+
+        Map<String, Object> normalized = new HashMap<>();
+
+        // Validar requeridos
+        for (String req : required) {
+            Object val = arguments.get(req);
+            if (val == null || (val instanceof String && ((String) val).trim().isEmpty())) {
+                throw new IllegalArgumentException("Missing required parameter: " + req);
+            }
+        }
+
+        for (Map.Entry<String, Object> entry : arguments.entrySet()) {
+            String key = entry.getKey();
+            Object schema = properties.get(key);
+            if (!(schema instanceof Map)) continue;
+            String type = (String) ((Map<String, Object>) schema).get("type");
+            Object value = entry.getValue();
+            if (value == null) {
+                normalized.put(key, null);
+                continue;
+            }
+            try {
+                if ("integer".equals(type)) {
+                    if (value instanceof Number) {
+                        normalized.put(key, ((Number) value).intValue());
+                    } else {
+                        normalized.put(key, Integer.parseInt(value.toString()));
+                    }
+                } else if ("number".equals(type)) {
+                    if (value instanceof Number) {
+                        normalized.put(key, ((Number) value).doubleValue());
+                    } else {
+                        normalized.put(key, Double.parseDouble(value.toString()));
+                    }
+                } else if ("boolean".equals(type)) {
+                    if (value instanceof Boolean) {
+                        normalized.put(key, value);
+                    } else {
+                        normalized.put(key, Boolean.parseBoolean(value.toString()));
+                    }
+                } else { // default string
+                    normalized.put(key, value.toString());
+                }
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Invalid value for parameter '" + key + "': " + value);
+            }
+        }
+
+        return normalized;
     }
 
     /**

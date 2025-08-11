@@ -93,7 +93,7 @@ class McpToolParameterFixIntegrationTest {
         assertTrue(arguments.isEmpty(), "Arguments should be empty for list_tables");
 
         // Test 4: Compare with query_data tool that does require parameters
-        when(llmService.generate(anyString(), anyString())).thenReturn("SELECT * FROM tables");
+        when(llmService.generate(anyString(), anyString())).thenReturn("{\"query\":\"SELECT * FROM tables\"}");
         Map<String, Object> queryDataArgs = testService.extractToolArguments("show me all tables", "query_data");
         assertFalse(queryDataArgs.isEmpty(), "query_data should extract parameters");
         assertTrue(queryDataArgs.containsKey("query"), "query_data should have query parameter");
