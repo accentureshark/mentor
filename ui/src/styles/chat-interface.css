@@ -109,14 +109,29 @@
 
 .chat-message-header {
   display: flex;
-  gap: 0.5rem;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 0.25rem;
   font-size: 0.75rem;
   color: #666;
 }
 
+.chat-message-meta {
+  display: flex;
+  gap: 0.5rem;
+}
+
 .chat-message.user .chat-message-header {
   flex-direction: row-reverse;
+}
+
+.chat-message.user .chat-message-meta {
+  flex-direction: row-reverse;
+}
+
+.chat-message-actions {
+  display: flex;
+  gap: 0.25rem;
 }
 
 .chat-message-text {
