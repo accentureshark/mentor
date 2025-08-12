@@ -489,12 +489,10 @@ public class McpToolService {
         String value = llmService.generate(prompt.toString(), "");
 
         if (value == null || value.trim().isEmpty() || "NULL".equalsIgnoreCase(value.trim())) {
-            // Para parámetros requeridos, solo usar el mensaje completo como fallback si es muy simple
+            // Para parámetros requeridos, usar SIEMPRE el mensaje completo como fallback si no se pudo extraer
             if (isRequired && userMessage != null && !userMessage.trim().isEmpty()) {
-                if (userMessage.trim().split("\\s+").length <= 5) {
-                    log.debug("Using full user message as fallback for required parameter '{}': {}", key, userMessage);
-                    return userMessage.trim();
-                }
+                log.debug("Using full user message as fallback for required parameter '{}': {}", key, userMessage);
+                return userMessage.trim();
             }
             return null;
         }
