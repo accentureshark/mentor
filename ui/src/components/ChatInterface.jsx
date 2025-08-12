@@ -20,6 +20,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
   const [loading, setLoading] = useState(false);
   const [tools, setTools] = useState([]);
   const [infoCollapsed, setInfoCollapsed] = useState(false);
+  const [editingIndex, setEditingIndex] = useState(null);
   const toast = useRef(null);
   const scrollPanelRef = useRef(null);
 
@@ -102,30 +103,91 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
     setSuggestions([]);
   };
 
+  const handleCopy = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.current?.show({
+        severity: 'info',
+        summary: 'Copied',
+        detail: 'Message copied',
+        life: 2000,
+      });
+    } catch (err) {
+      toast.current?.show({
+        severity: 'error',
+        summary: 'Error',
+        detail: 'Failed to copy',
+        life: 2000,
+      });
+    }
+  };
+
+  const handleEditMessage = (index) => {
+    const message = messages[index];
+    if (!message || message.role !== 'USER') return;
+    setInputMessage(message.content);
+    setMessages(prev => prev.slice(0, index));
+    setEditingIndex(index);
+  };
+
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || !selectedServer || selectedServer.status !== 'CONNECTED' || !toolsAcknowledged || loading) return;
 
-    const userMessage = {
-      id: Date.now().toString(),
-      role: 'USER',
-      content: inputMessage,
-      timestamp: Date.now(),
-      serverId: selectedServer.id,
-    };
-
-    setMessages(prev => [...prev, userMessage]);
-    setInputMessage('');
     setSuggestions([]);
     setLoading(true);
 
+    const sendSequential = async (userMsgs) => {
+      let newMessages = [];
+      for (const msg of userMsgs) {
+        newMessages = [...newMessages, msg];
+        setMessages(newMessages);
+        const response = await chatService.sendMessage(
+          BACKEND_URL,
+          selectedServer.id,
+          msg.content,
+          conversationId
+        );
+        newMessages = [...newMessages, response];
+        setMessages(newMessages);
+      }
+    };
+
     try {
-      const response = await chatService.sendMessage(
+      if (editingIndex !== null) {
+        await chatService.clearConversation(BACKEND_URL, conversationId);
+        const priorUserMessages = messages.filter(m => m.role === 'USER');
+        const allUserMessages = [
+          ...priorUserMessages,
+          {
+            id: Date.now().toString(),
+            role: 'USER',
+            content: inputMessage,
+            timestamp: Date.now(),
+            serverId: selectedServer.id,
+          },
+        ];
+        setMessages([]);
+        await sendSequential(allUserMessages);
+        setEditingIndex(null);
+      } else {
+        const userMessage = {
+          id: Date.now().toString(),
+          role: 'USER',
+          content: inputMessage,
+          timestamp: Date.now(),
+          serverId: selectedServer.id,
+        };
+
+        setMessages(prev => [...prev, userMessage]);
+        const response = await chatService.sendMessage(
           BACKEND_URL,
           selectedServer.id,
           inputMessage,
           conversationId
-      );
-      setMessages(prev => [...prev, response]);
+        );
+        setMessages(prev => [...prev, response]);
+      }
+      setInputMessage('');
     } catch (error) {
       toast.current?.show({
         severity: 'error',
@@ -176,7 +238,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
     });
   };
 
-  const renderMessage = (message) => {
+  const renderMessage = (message, index) => {
     const isUser = message.role === 'USER';
 
     return (
@@ -190,12 +252,30 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
           </div>
           <div className="chat-message-content">
             <div className="chat-message-header">
-            <span className="chat-message-role">
-              {isUser ? 'You' : selectedServer?.name || 'Assistant'}
-            </span>
-              <span className="chat-message-time">
-              {formatTimestamp(message.timestamp)}
-            </span>
+              <div className="chat-message-meta">
+                <span className="chat-message-role">
+                  {isUser ? 'You' : selectedServer?.name || 'Assistant'}
+                </span>
+                <span className="chat-message-time">
+                  {formatTimestamp(message.timestamp)}
+                </span>
+              </div>
+              <div className="chat-message-actions">
+                <Button
+                  icon="pi pi-copy"
+                  className="p-button-text p-button-rounded p-button-sm"
+                  onClick={() => handleCopy(message.content)}
+                  tooltip="Copy message"
+                />
+                {isUser && (
+                  <Button
+                    icon="pi pi-pencil"
+                    className="p-button-text p-button-rounded p-button-sm"
+                    onClick={() => handleEditMessage(index)}
+                    tooltip="Edit message"
+                  />
+                )}
+              </div>
             </div>
             <div className="chat-message-text">
               {isUser ? (
@@ -313,7 +393,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
                     <p>Start a conversation by typing a message below.</p>
                   </div>
               ) : (
-                  messages.map(renderMessage)
+                  messages.map((m, i) => renderMessage(m, i))
               )}
               {loading && (
                   <div className="chat-message assistant">
