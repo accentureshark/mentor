@@ -241,10 +241,12 @@ public class McpToolService {
             requiredParams = Collections.emptyList();
         }
 
+        String toolDescription = toolSchema.get("description") != null ? toolSchema.get("description").toString() : "";
+
         Map<String, Object> args = new HashMap<>();
         for (String key : properties.keySet()) {
             Object propertySchema = properties.get(key);
-            Object value = llmExtractArgument(userMessage, key, propertySchema, requiredParams.contains(key));
+            Object value = llmExtractArgument(userMessage, key, propertySchema, requiredParams.contains(key), toolDescription);
             if (value != null) {
                 args.put(key, value);
             }
@@ -466,13 +468,14 @@ public class McpToolService {
     /**
      * Usa LLM para extraer el valor de un argumento específico del mensaje del usuario.
      */
-    private Object llmExtractArgument(String userMessage, String key, Object propertySchema, boolean isRequired) {
+    private Object llmExtractArgument(String userMessage, String key, Object propertySchema, boolean isRequired, String toolDescription) {
         // Si el parámetro no es requerido y el mensaje del usuario es muy simple, no extraer
         if (!isRequired && (userMessage == null || userMessage.trim().length() < 3)) {
             return null;
         }
 
         StringBuilder prompt = new StringBuilder();
+        prompt.append("Herramienta: ").append(toolDescription).append("\n");
         prompt.append("Extrae el valor para el parámetro '").append(key).append("' del mensaje del usuario a continuación.\n");
         prompt.append("Esquema del parámetro: ").append(objectMapper.valueToTree(propertySchema).toPrettyString()).append("\n");
         prompt.append("Mensaje del usuario: ").append(userMessage).append("\n");
@@ -484,7 +487,7 @@ public class McpToolService {
         }
 
         prompt.append("Si no puedes extraer un valor significativo, responde con 'NULL'.\n");
-        prompt.append("Responde ÚNICAMENTE con el valor del parámetro, sin explicaciones.\n"); // <-- Quitado el prefijo con el nombre del parámetro
+        prompt.append("Responde ÚNICAMENTE con el valor del parámetro, sin explicaciones.\n");
 
         String value = llmService.generate(prompt.toString(), "");
 
