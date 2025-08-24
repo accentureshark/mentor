@@ -8,32 +8,28 @@ import org.shark.mentor.mcp.service.McpToolService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/mcp/tools")
-@CrossOrigin(origins = "*")
 @RequiredArgsConstructor
 @Slf4j
 public class McpToolController {
     private final McpToolService mcpToolService;
     private final McpServerService mcpServerService;
 
-    /**
-     * Lista las herramientas (tools) expuestas por el servidor MCP seleccionado
-     */
     @GetMapping("/{serverId}")
     public ResponseEntity<List<Map<String, Object>>> listTools(@PathVariable String serverId) {
-        long start = System.currentTimeMillis();
-        log.info("Listando tools para el servidor {}", serverId);
-        McpServer server = mcpServerService.getServer(serverId)
-                .orElseThrow(() -> new IllegalArgumentException("Servidor no encontrado: " + serverId));
-        List<Map<String, Object>> tools = mcpToolService.getTools(server);
-        log.info("Tools encontradas para el servidor {}: {}", serverId, tools);
-        long duration = System.currentTimeMillis() - start;
-        log.info("Se obtuvieron {} tools para el servidor {} en {} ms", tools.size(), serverId, duration);
+        Optional<McpServer> serverOpt = mcpServerService.getServer(serverId);
+        if (serverOpt.isEmpty()) {
+            log.warn("No server found for id: {}", serverId);
+            return ResponseEntity.status(404).body(Collections.emptyList());
+        }
+        List<Map<String, Object>> tools = mcpToolService.getTools(serverOpt.get());
+        log.info("Tools found for server {}: {}", serverId, tools.size());
         return ResponseEntity.ok(tools);
     }
 }
-

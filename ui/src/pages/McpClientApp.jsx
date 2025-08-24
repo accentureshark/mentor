@@ -19,19 +19,28 @@ const McpClientApp = () => {
 
   const handleServerSelect = async (server) => {
     setSelectedServer(server);
-    
-    // If the server is connected and we haven't shown the tools yet
-    if (server.status === 'CONNECTED' && !toolsAcknowledged.has(server.id)) {
-      try {
-        console.log('Fetching tools for first-time server selection:', server.name);
-        const tools = await getServerTools(server.id);
-        setCurrentTools(tools);
-        setShowToolsModal(true);
-      } catch (error) {
-        console.error('Error fetching tools:', error);
-        // If tools cannot be fetched, mark as acknowledged to allow the chat
-        setToolsAcknowledged(prev => new Set(prev).add(server.id));
+    try {
+      console.log('Fetching tools for server selection:', server.name);
+      const tools = await getServerTools(server.id);
+      setCurrentTools(tools);
+      setShowToolsModal(true);
+      // Si la obtención de tools es exitosa, actualizar el estado del servidor a CONNECTED en el backend
+      if (tools && tools.length > 0) {
+        const updatedServer = { ...server, status: 'CONNECTED', lastError: '' };
+        setSelectedServer(updatedServer);
+        setServers(prevServers => prevServers.map(s => s.id === server.id ? updatedServer : s));
+        // Notificar al backend que el servidor está conectado
+        try {
+          await import('../services/mcpServerService').then(({ mcpServerService }) =>
+            mcpServerService.updateServerStatus(server.id, 'CONNECTED', '')
+          );
+        } catch (err) {
+          console.error('No se pudo actualizar el estado del servidor en el backend:', err);
+        }
       }
+    } catch (error) {
+      console.error('Error fetching tools:', error);
+      setToolsAcknowledged(prev => new Set(prev).add(server.id));
     }
   };
 
