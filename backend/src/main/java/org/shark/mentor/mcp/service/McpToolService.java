@@ -88,7 +88,8 @@ public class McpToolService {
     }
 
     public List<Map<String, Object>> getToolsViaHttp(McpServer server) throws Exception {
-        String url = server.getUrl() + "/mcp/tools/list";
+        String baseUrl = server.getUrl();
+        String url = baseUrl.endsWith("/mcp") ? baseUrl : baseUrl + "/mcp";
         String body = "{\"jsonrpc\":\"2.0\",\"id\":\"" + UUID.randomUUID() + "\",\"method\":\"tools/list\",\"params\":{}}";
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
@@ -98,10 +99,7 @@ public class McpToolService {
                 .build();
 
         HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-        log.info("Usando URL base del servidor MCP: {}", server.getUrl());
-
-        // Log del status y el cuerpo de la respuesta
-        //log.info("Respuesta HTTP de {}: status={}, body={}", url, response.statusCode(), response.body());
+        log.info("Usando URL base del servidor MCP: {}", url);
 
         JsonNode root = objectMapper.readTree(response.body());
 
@@ -312,7 +310,8 @@ public class McpToolService {
     }
 
     private String sendToolCallViaHttp(McpServer server, Map<String, Object> toolCall) throws Exception {
-        String url = server.getUrl() + "/mcp/tools/call";
+        String baseUrl = server.getUrl();
+        String url = baseUrl.endsWith("/mcp") ? baseUrl : baseUrl + "/mcp";
         String body = objectMapper.writeValueAsString(toolCall);
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest request = HttpRequest.newBuilder()
@@ -399,14 +398,11 @@ public class McpToolService {
                 filteredArgs.put(key, arguments.get(key));
             }
         }
-        Map<String, Object> params = new HashMap<>();
-        params.put("name", toolSchema.get("name"));
-        params.put("arguments", filteredArgs);
         Map<String, Object> call = new HashMap<>();
         call.put("jsonrpc", "2.0");
         call.put("id", UUID.randomUUID().toString());
-        call.put("method", "tools/call");
-        call.put("params", params);
+        call.put("method", toolSchema.get("name"));
+        call.put("params", filteredArgs);
         return call;
     }
 
@@ -510,3 +506,4 @@ public class McpToolService {
         return cleanedValue.isEmpty() ? null : cleanedValue;
     }
 }
+

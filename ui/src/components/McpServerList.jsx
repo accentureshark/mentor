@@ -166,7 +166,6 @@ export const McpServerList = ({ onServerSelect, selectedServerId, onServersUpdat
   };
 
 
-
   const formatLastConnected = (timestamp) => {
     if (!timestamp) return 'Never';
     const diff = Date.now() - timestamp;

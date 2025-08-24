@@ -1,4 +1,7 @@
-const API_BASE_URL = 'http://localhost:8083/api/mcp';
+import { normalizeBaseUrl } from './urlUtils';
+
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8083';
+const API_BASE_URL = normalizeBaseUrl(BACKEND_URL);
 
 export const mcpServerService = {
   // Get all MCP servers
@@ -44,17 +47,17 @@ export const mcpServerService = {
     }
   },
 
-  // Update server status
-  updateServerStatus: async (id, status) => {
+  // Update server status (with error optional)
+  updateServerStatus: async (id, status, lastError = '') => {
     const response = await fetch(`${API_BASE_URL}/servers/${id}/status`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(status),
+      body: JSON.stringify({ status, lastError }),
     });
     if (!response.ok) {
-      throw new Error('Failed to update server status');
+      throw new Error('Failed to update MCP server status');
     }
     return response.json();
   },

@@ -1,9 +1,5 @@
 // src/services/chatService.js
-
-const normalizeBaseUrl = (url) => {
-  const trimmed = url.replace(/\/+$/, '');
-  return trimmed.endsWith('/api/mcp') ? trimmed : `${trimmed}/api/mcp`;
-};
+import { normalizeBaseUrl } from './urlUtils';
 
 export const chatService = {
   // Get messages for a specific conversation
@@ -39,24 +35,10 @@ export const chatService = {
         console.error('❌ HTTP error response:', response.status, responseText);
         throw new Error(`Failed to send message: HTTP ${response.status}`);
       }
-
-      const parsed = JSON.parse(responseText);
-      console.log('✅ Respuesta JSON parseada:', parsed);
-
-      return parsed;
-    } catch (err) {
-      console.error('🔥 Exception sending message:', err);
-      throw new Error('Failed to send message');
-    }
-  },
-
-
-  // Clear a conversation
-  clearConversation: async (baseUrl, conversationId) => {
-    const url = `${normalizeBaseUrl(baseUrl)}/chat/conversations/${conversationId}`;
-    const response = await fetch(url, { method: 'DELETE' });
-    if (!response.ok) {
-      throw new Error('Failed to clear conversation');
+      return JSON.parse(responseText);
+    } catch (error) {
+      console.error('❌ Error sending message:', error);
+      throw error;
     }
   },
 };

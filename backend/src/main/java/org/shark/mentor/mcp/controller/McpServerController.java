@@ -54,18 +54,6 @@ public class McpServerController {
         }
     }
 
-    @PutMapping("/{id}/status")
-    public ResponseEntity<McpServer> updateServerStatus(
-            @PathVariable String id,
-            @RequestBody String status) {
-        log.info("Updating server {} status to {}", id, status);
-        McpServer updatedServer = mcpServerService.updateServerStatus(id, status);
-        if (updatedServer != null) {
-            return ResponseEntity.ok(updatedServer);
-        } else {
-            return ResponseEntity.notFound().build();
-        }
-    }
 
     @PostMapping("/{id}/connect")
     public ResponseEntity<McpServer> connectToServer(@PathVariable String id) {

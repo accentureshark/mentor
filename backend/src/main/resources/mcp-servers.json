@@ -1,13 +1,7 @@
 {
   "_comment": "Set \"prewarm\": true on a server to prestart its container during application startup.",
   "servers": [
-    {
-      "id": "melian-local",
-      "name": "Melian MCP Server (Local)",
-      "description": "Local MELIAN - Embedding Module and Intelligent Logic for Natural Access",
-      "url": "http://localhost:8080",
-      "implemented": true
-    },
+
     {
       "id": "github-stdio",
       "name": "GitHub MCP Server (STDIO)",
@@ -16,15 +10,25 @@
       "implemented": true,
       "prewarm": true
     },
+    {
+      "id": "melian",
+      "name": "Melian the movie mcp server",
+      "description": "Melian the movie mcp server",
+      "url": "http://localhost:8080/mcp",
+      "implemented": true,
+      "prewarm": true
+    },
+
 
     {
       "id": "polenta-local",
       "name": "Polenta MCP Server (Local)",
         "description": "Polenta MCP Server for Data Lake access with PrestoDB",
-        "url": "http://localhost:8090",
+         "url": "http://localhost:8090/mcp",
         "implemented": true,
         "prewarm": true
       }
+
 
   ]
 }
