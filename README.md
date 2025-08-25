@@ -1,77 +1,114 @@
 # Mentor - Universal Model Context Protocol Interface
 
-This is a universal MCP (Model Context Protocol) client that can connect to multiple MCP servers, including the local Melian server and various public MCP servers.
+Este proyecto es un cliente universal MCP (Model Context Protocol) que puede conectarse a múltiples servidores MCP, incluyendo el servidor local Melian y varios servidores MCP públicos.
 
-## Architecture
+## Tecnologías Utilizadas
 
-- **Backend** (`backend/`): Spring Boot application providing REST APIs for MCP server management
-- **UI** (`ui/`): React application with PrimeReact components for the user interface
+- **Backend:**
+  - Java 17+
+  - Spring Boot 3.x
+  - Maven
+  - REST API
+  - Integración con servidores MCP vía HTTP/JSON
+  - Interacción con modelos LLM (Llama/Gemma vía Ollama)
+- **Frontend:**
+  - React 18
+  - Vite
+  - PrimeReact
+  - Comunicación con backend vía REST
+- **Contenedores:**
+  - Docker y Docker Compose (opcional para despliegue)
+  - Ollama para servir modelos LLM (Llama, Gemma, etc.)
+
+## Arquitectura
+
+- **Backend** (`backend/`):
+  - Aplicación Spring Boot que expone APIs REST para la gestión de servidores MCP y operaciones de chat.
+  - Implementa el protocolo MCP (Model Context Protocol) para interactuar con servidores MCP, permitiendo descubrimiento de herramientas, ejecución de acciones y consulta de metadatos.
+  - Gestiona múltiples servidores MCP configurables mediante `mcp-servers.json`.
+  - Traduce las solicitudes del usuario a llamadas compatibles con el protocolo MCP y procesa las respuestas para la UI.
+  - Integra con Ollama para interactuar con modelos LLM (como Llama y Gemma), permitiendo respuestas generadas por IA en el flujo conversacional.
+- **UI** (`ui/`):
+  - Aplicación React con componentes PrimeReact para la interfaz de usuario.
+  - Permite seleccionar servidores MCP, enviar mensajes y explorar herramientas y metadatos expuestos por los servidores MCP.
+
+## Cumplimiento del Protocolo MCP
+
+- El backend implementa el protocolo MCP (Model Context Protocol) para la interoperabilidad con servidores MCP.
+- Soporta descubrimiento dinámico de herramientas (tools), ejecución de acciones, consulta de schemas, tablas y columnas, y manejo de errores estándar MCP.
+- Todas las interacciones con servidores MCP se realizan usando HTTP y mensajes JSON siguiendo las especificaciones del protocolo MCP.
+- El backend actúa como traductor entre la UI y los servidores MCP, asegurando compatibilidad y extensibilidad.
+- La integración con LLM (Ollama) permite enriquecer las respuestas y el procesamiento de lenguaje natural, manteniendo la compatibilidad con el protocolo MCP.
 
 ## Quick Start
 
-### Using Make (Recommended)
+### Usando Make (Recomendado)
 
 ```bash
-# From the root directory, build and run both client components
+# Desde el directorio raíz, compila y ejecuta ambos componentes del cliente
 make run-client
 ```
 
-This will:
-- Build the backend (Spring Boot)
-- Build the UI (React + Vite)
-- Start backend on http://localhost:8083
-- Start UI on http://localhost:5174
+Esto realizará:
+- Compilación del backend (Spring Boot)
+- Compilación de la UI (React + Vite)
+- Inicio del backend en http://localhost:8083
+- Inicio de la UI en http://localhost:5174
 
-### Manual Setup
+### Configuración Manual
 
 ```bash
-# Build and run backend
+# Compilar y ejecutar backend
 cd mcp-client/backend
 mvn spring-boot:run
 
-# In another terminal, build and run UI
+# En otra terminal, compilar y ejecutar UI
 cd mcp-client/ui
 npm install
 npm run dev
 ```
 
+## Despliegue con Docker Compose
+
+El proyecto incluye un archivo `docker-compose.yml` que permite levantar servicios como Ollama (para LLMs) y, opcionalmente, el backend y frontend de Mentor. Ollama se utiliza para servir modelos como Llama y Gemma, facilitando la integración de IA conversacional en el flujo MCP.
+
 ## Available MCP Servers
 
-The client comes pre-configured with several MCP servers:
+El cliente viene preconfigurado con varios servidores MCP:
 
-1. **Melian MCP Server (Local)** - The main Melian server for movie data
-2. **GitHub MCP Server** - Access to GitHub repositories and issues
-3. **File System MCP Server** - Local file system operations
-4. **Brave Search MCP Server** - Web search capabilities
-5. **SQLite MCP Server** - Database query operations
+1. **Melian MCP Server (Local)** - Servidor principal Melian para datos de películas
+2. **GitHub MCP Server** - Acceso a repositorios e issues de GitHub
+3. **File System MCP Server** - Operaciones sobre el sistema de archivos local
+4. **Brave Search MCP Server** - Búsqueda web
+5. **SQLite MCP Server** - Consultas a bases de datos SQLite
 
-### IDE configuration
+### Configuración en IDE
 
-The backend now loads its MCP server list from
-`backend/src/main/resources/mcp-servers.json`. This same file can be used
-directly with the VSCode or IntelliJ MCP client plugins so the IDE stays in sync
-with the running application.
+El backend carga la lista de servidores MCP desde
+`backend/src/main/resources/mcp-servers.json`. Este archivo puede usarse
+directamente con los plugins MCP client de VSCode o IntelliJ para mantener la configuración sincronizada.
 
-## Usage
+## Uso
 
-1. Open http://localhost:5174 in your browser
-2. Select an MCP server from the left sidebar
-3. Start chatting with the selected server
-4. The assistant responds strictly using the context returned by the MCP server
-   and avoids inferring or adding new information
+1. Abre http://localhost:5174 en tu navegador
+2. Selecciona un servidor MCP desde la barra lateral
+3. Comienza a chatear con el servidor seleccionado
+4. El asistente responde estrictamente usando el contexto retornado por el servidor MCP
+   y evita inferir o agregar información nueva
 
 ## Make Targets
 
-From the root directory:
+Desde el directorio raíz:
 
-- `make build-client` - Build both backend and UI
-- `make run-client` - Run both components
-- `make run-client-backend` - Run only the backend
-- `make run-client-ui` - Run only the UI
-- `make clean-client` - Clean build artifacts
+- `make build-client` - Compila backend y UI
+- `make run-client` - Ejecuta ambos componentes
+- `make run-client-backend` - Solo backend
+- `make run-client-ui` - Solo UI
+- `make clean-client` - Limpia artefactos
 
-## Requirements
+## Requisitos
 
 - Java 17+
 - Node.js 18+
 - Maven 3.8+
+- Docker (para uso de Ollama y despliegue completo)
