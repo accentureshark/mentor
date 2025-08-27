@@ -97,10 +97,12 @@ public class ChatService {
             return createErrorMessage(request, errorMessage);
         }
 
-        // Detect initial connection (empty message) and return available tools
+        // Detect initial connection (empty message) - don't create initial message
         String query = request.getMessage();
         if (query == null || query.trim().isEmpty()) {
-            return createInitialConnectionMessage(request, server);
+            // For initial connections, don't create any message
+            // Just return null so the frontend knows there's no initial message
+            return null;
         }
 
         // Crear y guardar el mensaje del usuario
@@ -315,10 +317,12 @@ public class ChatService {
             throw new IllegalStateException("Server is not connected: " + server.getName() + errorDetails + ". Use the connection button in the server list to connect.");
         }
 
-        // Detect initial connection (empty message) and return available tools
+        // Detect initial connection (empty message) - don't create initial message
         String query = request.getMessage();
         if (query == null || query.trim().isEmpty()) {
-            return createInitialConnectionMessage(request, server);
+            // For initial connections, don't create any message
+            // Just return null so the frontend knows there's no initial message
+            return null;
         }
 
         ChatMessage userMessage = ChatMessage.builder()

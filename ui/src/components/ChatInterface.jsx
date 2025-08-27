@@ -32,7 +32,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
       const history = await chatService.getConversation(BACKEND_URL, conversationId);
       setMessages(history);
 
-      // If this is the first connection, request available tools
+      // If this is the first connection, check if there's an initial message
       if (history.length === 0 && selectedServer.status === 'CONNECTED') {
         try {
           const initial = await chatService.sendMessage(
@@ -41,9 +41,12 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
             '',
             conversationId
           );
-          setMessages([initial]);
+          // Only add the initial message if it's not null
+          if (initial) {
+            setMessages([initial]);
+          }
         } catch (err) {
-          console.error('Failed to load initial tools', err);
+          console.error('Failed to load initial message', err);
         }
       }
     } catch (error) {
