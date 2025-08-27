@@ -1,0 +1,153 @@
+/* Autocomplete Textarea Styling */
+.autocomplete-textarea-container {
+  position: relative;
+  width: 100%;
+}
+
+.autocomplete-suggestions {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  max-height: 300px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.autocomplete-header {
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: #666;
+  font-weight: 500;
+}
+
+.autocomplete-header .pi {
+  font-size: 0.8rem;
+  color: #007bff;
+}
+
+.autocomplete-list {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.autocomplete-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  display: flex;
+  align-items: center;
+}
+
+.autocomplete-item:hover,
+.autocomplete-item.selected {
+  background: #e3f2fd;
+}
+
+.autocomplete-item.selected {
+  background: #007bff;
+  color: white;
+}
+
+.autocomplete-item-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.autocomplete-item-text {
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.autocomplete-item.selected .autocomplete-item-text {
+  color: white;
+}
+
+.autocomplete-item-match {
+  font-size: 0.75rem;
+  color: #666;
+  font-style: italic;
+}
+
+.autocomplete-item.selected .autocomplete-item-match {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.autocomplete-footer {
+  padding: 6px 12px;
+  background: #f8f9fa;
+  border-top: 1px solid #e9ecef;
+  text-align: center;
+  color: #666;
+  font-size: 0.75rem;
+}
+
+/* Custom scrollbar for suggestions list */
+.autocomplete-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.autocomplete-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.autocomplete-list::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.autocomplete-list::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Make sure the suggestions appear above other elements */
+.autocomplete-textarea-container .p-inputtextarea {
+  position: relative;
+  z-index: 1;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .autocomplete-suggestions {
+    max-height: 250px;
+  }
+  
+  .autocomplete-list {
+    max-height: 150px;
+  }
+}
+
+/* Animation for suggestions appearance */
+.autocomplete-suggestions {
+  animation: fadeInUp 0.2s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
