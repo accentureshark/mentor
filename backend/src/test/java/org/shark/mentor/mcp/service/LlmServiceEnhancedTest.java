@@ -6,6 +6,7 @@ import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.output.Response;
 import org.junit.jupiter.api.Test;
+import org.shark.mentor.mcp.config.LlmProperties;
 
 import java.lang.reflect.Field;
 import java.util.List;
