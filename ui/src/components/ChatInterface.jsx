@@ -23,10 +23,10 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
   const toast = useRef(null);
   const scrollPanelRef = useRef(null);
 
-  const conversationId = selectedServer ? `server-${selectedServer.id}` : 'default';
+  const conversationId = selectedServer?.id ? `server-${selectedServer.id}` : null;
 
   const loadConversation = async () => {
-    if (!selectedServer) return;
+    if (!selectedServer || !conversationId) return;
 
     try {
       const history = await chatService.getConversation(BACKEND_URL, conversationId);
@@ -71,7 +71,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
         setTools([]);
       });
     loadConversation();
-  }, [selectedServer]);
+  }, [selectedServer, conversationId]);
 
   useEffect(() => {
     if (scrollPanelRef.current) {
@@ -81,7 +81,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
   }, [messages]);
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim() || !selectedServer || selectedServer.status !== 'CONNECTED' || !toolsAcknowledged || loading) return;
+    if (!inputMessage.trim() || !selectedServer || !conversationId || selectedServer.status !== 'CONNECTED' || !toolsAcknowledged || loading) return;
 
     const userMessage = {
       id: Date.now().toString(),
@@ -116,6 +116,11 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
   };
 
   const handleClearMessages = async () => {
+    if (!conversationId) {
+      console.warn('[ChatInterface] Cannot clear conversation: conversationId is null');
+      return;
+    }
+    
     console.log('[ChatInterface] Clear conversation clicked');
     console.log('[ChatInterface] conversationId:', conversationId);
     console.log('[ChatInterface] BACKEND_URL:', BACKEND_URL);
@@ -283,7 +288,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
                   icon="pi pi-trash"
                   className="p-button-text"
                   onClick={handleClearMessages}
-                  disabled={messages.length === 0}
+                  disabled={messages.length === 0 || !conversationId}
                   tooltip="Clear conversation"
               />
             </div>
@@ -322,7 +327,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
                   onKeyDown={handleKeyPress}
                   placeholder={`Type your message to ${selectedServer.name}... (Enter to send, Shift+Enter for new line)`}
                   className="chat-input-field"
-                  disabled={loading || selectedServer.status !== 'CONNECTED' || !toolsAcknowledged}
+                  disabled={loading || !conversationId || selectedServer.status !== 'CONNECTED' || !toolsAcknowledged}
                   rows={3}
                   autoResize
                   tools={tools}
@@ -330,7 +335,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
               <Button
                   icon="pi pi-send"
                   onClick={handleSendMessage}
-                  disabled={!inputMessage.trim() || loading || selectedServer.status !== 'CONNECTED' || !toolsAcknowledged}
+                  disabled={!inputMessage.trim() || loading || !conversationId || selectedServer.status !== 'CONNECTED' || !toolsAcknowledged}
                   className="chat-send-button"
               />
             </div>
