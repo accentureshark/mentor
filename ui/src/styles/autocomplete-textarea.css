@@ -2,6 +2,9 @@
 .autocomplete-textarea-container {
   position: relative;
   width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .autocomplete-suggestions {
@@ -123,6 +126,8 @@
 .autocomplete-textarea-container .p-inputtextarea {
   position: relative;
   z-index: 1;
+  width: 100%;
+  flex: 1;
 }
 
 /* Responsive adjustments */
