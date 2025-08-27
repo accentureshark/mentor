@@ -9,6 +9,7 @@ import sharkLogo from '../assets/shark-ia.png';
 import ReactMarkdown from 'react-markdown';
 import { chatService } from '../services/chatService';
 import { getServerTools } from '../services/toolService';
+import AutocompleteTextarea from './AutocompleteTextarea';
 import '../styles/chat-interface.css';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8083/api/mcp';
@@ -115,9 +116,18 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
   };
 
   const handleClearMessages = async () => {
+    console.log('[ChatInterface] Clear conversation clicked');
+    console.log('[ChatInterface] conversationId:', conversationId);
+    console.log('[ChatInterface] BACKEND_URL:', BACKEND_URL);
+    
     try {
+      console.log('[ChatInterface] Calling chatService.clearConversation...');
       await chatService.clearConversation(BACKEND_URL, conversationId);
+      console.log('[ChatInterface] Clear conversation successful');
+      
       setMessages([]);
+      console.log('[ChatInterface] Messages state cleared');
+      
       toast.current?.show({
         severity: 'success',
         summary: 'Cleared',
@@ -125,6 +135,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
         life: 2000,
       });
     } catch (error) {
+      console.error('[ChatInterface] Clear conversation failed:', error);
       toast.current?.show({
         severity: 'error',
         summary: 'Error',
@@ -305,7 +316,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
 
           <div className="chat-input">
             <div className="chat-input-container">
-              <InputTextarea
+              <AutocompleteTextarea
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyDown={handleKeyPress}
@@ -314,6 +325,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
                   disabled={loading || selectedServer.status !== 'CONNECTED' || !toolsAcknowledged}
                   rows={3}
                   autoResize
+                  tools={tools}
               />
               <Button
                   icon="pi pi-send"

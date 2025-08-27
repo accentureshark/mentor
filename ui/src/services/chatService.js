@@ -54,9 +54,23 @@ export const chatService = {
   // Clear a conversation
   clearConversation: async (baseUrl, conversationId) => {
     const url = `${normalizeBaseUrl(baseUrl)}/chat/conversations/${conversationId}`;
-    const response = await fetch(url, { method: 'DELETE' });
-    if (!response.ok) {
-      throw new Error('Failed to clear conversation');
+    console.log('[chatService] Clearing conversation, URL:', url);
+    
+    try {
+      const response = await fetch(url, { method: 'DELETE' });
+      console.log('[chatService] Clear conversation response status:', response.status);
+      console.log('[chatService] Clear conversation response ok:', response.ok);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[chatService] Clear conversation error response:', errorText);
+        throw new Error(`Failed to clear conversation: ${response.status} - ${errorText}`);
+      }
+      
+      console.log('[chatService] Clear conversation successful');
+    } catch (error) {
+      console.error('[chatService] Clear conversation exception:', error);
+      throw error;
     }
   },
 };
