@@ -352,15 +352,19 @@ export const McpServerList = ({ onServerSelect, selectedServerId, onServersUpdat
           </div>
           <div className="mcp-server-actions">
             <Button
-              icon="pi pi-link"
-              className="p-button-text p-button-warning p-button-sm"
+              icon={server.status === 'CONNECTED' ? "pi pi-check" : "pi pi-link"}
+              className={`p-button-text p-button-sm ${server.status === 'CONNECTED' ? 'p-button-success' : 'p-button-warning'}`}
               onClick={(e) => {
                 e.stopPropagation();
                 handleConnectServer(server);
               }}
-              tooltip={protocolInfo.isImplemented ?
-                "Connect to server" :
-                `${protocolInfo.protocol} protocol not yet implemented`}
+              tooltip={
+                server.status === 'CONNECTED' ? 
+                  "Server connected" :
+                  protocolInfo.isImplemented ?
+                    "Connect to server" :
+                    `${protocolInfo.protocol} protocol not yet implemented`
+              }
               disabled={loading || server.status === 'CONNECTED'}
             />
             <Button
