@@ -16,15 +16,13 @@
       "implemented": true,
       "prewarm": true
     },
-
     {
       "id": "polenta-local",
       "name": "Polenta MCP Server (Local)",
-        "description": "Polenta MCP Server for Data Lake access with PrestoDB",
-        "url": "http://localhost:8090",
-        "implemented": true,
-        "prewarm": true
-      }
-
+      "description": "Polenta MCP Server for Data Lake access with PrestoDB",
+      "url": "http://localhost:8090",
+      "implemented": true,
+      "prewarm": true
+    }
   ]
 }
