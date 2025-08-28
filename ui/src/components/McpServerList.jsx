@@ -17,27 +17,31 @@ export const McpServerList = ({ onServerSelect, selectedServerId, onServersUpdat
   const loadServers = async () => {
     setLoading(true);
     try {
-      console.log('Loading servers...');
+      console.log('🔄 Loading servers at:', new Date().toISOString());
       const data = await mcpServerService.getAllServers();
-      console.log('Servers loaded:', data);
+      console.log('✅ Servers loaded successfully:', data.length, 'servers');
 
-      data.forEach(server => {
-        console.log(`Server: ${server.name}`);
-        console.log(`  - Status: ${server.status}`);
-        console.log(`  - ID: ${server.id}`);
-        console.log(`  - URL: ${server.url}`);
-        console.log(`  - Protocol: ${server.url?.split('://')[0] || 'unknown'}`);
-        console.log('---');
-      });
+      if (data.length > 0) {
+        console.log('📋 Server details:');
+        data.forEach((server, index) => {
+          console.log(`${index + 1}. ${server.name}`);
+          console.log(`   - Status: ${server.status}`);
+          console.log(`   - ID: ${server.id}`);
+          console.log(`   - URL: ${server.url}`);
+          console.log(`   - Protocol: ${server.url?.split('://')[0] || 'unknown'}`);
+        });
+      } else {
+        console.log('📭 No servers found');
+      }
 
       setServers(data);
 
       if (onServersUpdate) {
-        console.log('Updating parent component with servers:', data);
+        console.log('🔄 Updating parent component with', data.length, 'servers');
         onServersUpdate(data);
       }
     } catch (error) {
-      console.error('Error loading servers:', error);
+      console.error('❌ Error loading servers:', error);
       toast.current?.show({
         severity: 'error',
         summary: 'Error',
@@ -49,6 +53,78 @@ export const McpServerList = ({ onServerSelect, selectedServerId, onServersUpdat
     }
   };
 
+  // Force reload backend configuration
+  const handleForceReload = async () => {
+    console.log('🔄 Force reload requested by user');
+    
+    toast.current?.show({
+      severity: 'info',
+      summary: 'Reloading Configuration...',
+      detail: 'Forcing backend to reload server configuration',
+      life: 3000,
+    });
+    
+    try {
+      // Call backend reload endpoint
+      const reloadedServers = await mcpServerService.reloadConfiguration();
+      console.log('✅ Backend configuration reloaded:', reloadedServers.length, 'servers');
+      
+      // Then refresh the frontend
+      await loadServers();
+      
+      toast.current?.show({
+        severity: 'success',
+        summary: 'Configuration Reloaded',
+        detail: `Backend reloaded with ${reloadedServers.length} servers`,
+        life: 3000,
+      });
+    } catch (error) {
+      console.error('❌ Force reload failed:', error);
+      
+      toast.current?.show({
+        severity: 'error',
+        summary: 'Reload Failed',
+        detail: 'Could not reload backend configuration. Check backend connection.',
+        life: 4000,
+      });
+    }
+  };
+
+  // Force refresh with user feedback
+  const handleManualRefresh = async () => {
+    console.log('🔄 Manual refresh requested by user');
+    
+    toast.current?.show({
+      severity: 'info',
+      summary: 'Refreshing...',
+      detail: 'Loading latest server configuration',
+      life: 2000,
+    });
+    
+    try {
+      await loadServers();
+      
+      // Get the current count after refresh for feedback
+      const currentServers = await mcpServerService.getAllServers();
+      
+      toast.current?.show({
+        severity: 'success',
+        summary: 'Refreshed',
+        detail: `Found ${currentServers.length} servers`,
+        life: 2000,
+      });
+    } catch (error) {
+      console.error('❌ Manual refresh failed:', error);
+      
+      toast.current?.show({
+        severity: 'error',
+        summary: 'Refresh Failed',
+        detail: 'Could not load server list. Check backend connection.',
+        life: 4000,
+      });
+    }
+  };
+
   useEffect(() => {
     loadServers();
   }, []);
@@ -57,20 +133,21 @@ export const McpServerList = ({ onServerSelect, selectedServerId, onServersUpdat
   useEffect(() => {
     const connectWebSocket = () => {
       try {
+        console.log('🔌 Attempting WebSocket connection to ws://localhost:8083/ws/mcp-config');
         const ws = new WebSocket('ws://localhost:8083/ws/mcp-config');
         wsRef.current = ws;
 
         ws.onopen = () => {
-          console.log('WebSocket connected for MCP config updates');
+          console.log('✅ WebSocket connected successfully for MCP config updates');
         };
 
         ws.onmessage = (event) => {
           try {
             const message = JSON.parse(event.data);
-            console.log('Received WebSocket message:', message);
+            console.log('📨 Received WebSocket message:', message);
             
             if (message.type === 'config-reload') {
-              console.log('Configuration reloaded, refreshing server list...');
+              console.log('🔄 Configuration reloaded, refreshing server list...');
               
               toast.current?.show({
                 severity: 'info',
@@ -79,25 +156,31 @@ export const McpServerList = ({ onServerSelect, selectedServerId, onServersUpdat
                 life: 3000,
               });
               
-              // Reload the server list
-              loadServers();
+              // Reload the server list with small delay to ensure backend is ready
+              setTimeout(() => {
+                console.log('🔄 Executing delayed server refresh after config reload');
+                loadServers();
+              }, 500);
             }
           } catch (error) {
-            console.error('Error parsing WebSocket message:', error);
+            console.error('❌ Error parsing WebSocket message:', error);
           }
         };
 
         ws.onclose = (event) => {
-          console.log('WebSocket connection closed:', event.code, event.reason);
+          console.log('❌ WebSocket connection closed:', event.code, event.reason);
+          console.log('🔄 Will attempt to reconnect in 3 seconds...');
           // Attempt to reconnect after 3 seconds
           setTimeout(connectWebSocket, 3000);
         };
 
         ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
+          console.error('❌ WebSocket error:', error);
+          console.log('This may indicate the backend WebSocket server is not running');
         };
       } catch (error) {
-        console.error('Failed to create WebSocket connection:', error);
+        console.error('❌ Failed to create WebSocket connection:', error);
+        console.log('🔄 Will retry connection in 5 seconds...');
         // Retry connection after 5 seconds
         setTimeout(connectWebSocket, 5000);
       }
@@ -322,13 +405,22 @@ export const McpServerList = ({ onServerSelect, selectedServerId, onServersUpdat
 
       <div className="mcp-server-list-header">
         <h3>MCP Servers</h3>
-        <Button
-          icon="pi pi-refresh"
-          onClick={loadServers}
-          loading={loading}
-          className="p-button-text"
-          tooltip="Refresh servers"
-        />
+        <div className="mcp-server-list-actions">
+          <Button
+            icon="pi pi-refresh"
+            onClick={handleManualRefresh}
+            loading={loading}
+            className="p-button-text"
+            tooltip="Refresh server list"
+          />
+          <Button
+            icon="pi pi-reload"
+            onClick={handleForceReload}
+            loading={loading}
+            className="p-button-text p-button-warning"
+            tooltip="Force reload backend configuration"
+          />
+        </div>
       </div>
 
       <div className="mcp-server-list-content">

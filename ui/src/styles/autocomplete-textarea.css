@@ -78,10 +78,61 @@
   font-size: 0.9rem;
   font-weight: 500;
   line-height: 1.2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .autocomplete-item.selected .autocomplete-item-text {
   color: white;
+}
+
+.autocomplete-item-details {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.autocomplete-description {
+  font-size: 0.75rem;
+  color: #666;
+  font-style: italic;
+}
+
+.autocomplete-detail {
+  font-size: 0.7rem;
+  color: #888;
+  font-weight: 500;
+}
+
+.autocomplete-item.selected .autocomplete-description {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.autocomplete-item.selected .autocomplete-detail {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.suggestion-type-badge {
+  font-size: 0.7rem;
+  margin-left: 4px;
+  opacity: 0.8;
+}
+
+.suggestion-type-badge.tool {
+  color: #007bff;
+}
+
+.suggestion-type-badge.param {
+  color: #28a745;
+}
+
+.suggestion-type-badge.value {
+  color: #ffc107;
+}
+
+.autocomplete-item.selected .suggestion-type-badge {
+  opacity: 1;
 }
 
 .autocomplete-item-match {
