@@ -120,4 +120,18 @@ public class McpServerController {
 
         return ResponseEntity.ok(String.format("Connected: %d/%d servers", connectedCount, totalCount));
     }
+
+    @PostMapping("/reload")
+    public ResponseEntity<List<McpServer>> reloadConfiguration() {
+        log.info("Reloading MCP server configuration");
+        try {
+            mcpServerService.reloadConfiguration();
+            List<McpServer> servers = mcpServerService.getAllServers();
+            log.info("Configuration reloaded successfully, {} servers loaded", servers.size());
+            return ResponseEntity.ok(servers);
+        } catch (Exception e) {
+            log.error("Failed to reload configuration: {}", e.getMessage());
+            return ResponseEntity.internalServerError().build();
+        }
+    }
 }

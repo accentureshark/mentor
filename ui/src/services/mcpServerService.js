@@ -1,18 +1,32 @@
 const API_BASE_URL = 'http://localhost:8083/api/mcp';
 
 export const mcpServerService = {
-  // Get all MCP servers
+  // Get all MCP servers with cache busting
   getAllServers: async () => {
-    const response = await fetch(`${API_BASE_URL}/servers`);
+    const response = await fetch(`${API_BASE_URL}/servers`, {
+      method: 'GET',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    });
     if (!response.ok) {
       throw new Error('Failed to fetch MCP servers');
     }
     return response.json();
   },
 
-  // Get a specific MCP server
+  // Get a specific MCP server with cache busting
   getServer: async (id) => {
-    const response = await fetch(`${API_BASE_URL}/servers/${id}`);
+    const response = await fetch(`${API_BASE_URL}/servers/${id}`, {
+      method: 'GET',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    });
     if (!response.ok) {
       throw new Error('Failed to fetch MCP server');
     }
@@ -69,6 +83,23 @@ export const mcpServerService = {
     });
     if (!response.ok) {
       throw new Error('Failed to connect to server');
+    }
+    return response.json();
+  },
+
+  // Reload backend configuration
+  reloadConfiguration: async () => {
+    const response = await fetch(`${API_BASE_URL}/servers/reload`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      },
+    });
+    if (!response.ok) {
+      throw new Error('Failed to reload configuration');
     }
     return response.json();
   },
