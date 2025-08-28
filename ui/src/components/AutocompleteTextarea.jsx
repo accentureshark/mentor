@@ -24,12 +24,73 @@ const AutocompleteTextarea = ({
   
   // Extract tool names and descriptions for autocomplete
   const getToolSuggestions = () => {
-    return tools.flatMap(tool => [
-      tool.name,
-      ...Object.keys(tool.inputSchema?.properties || {}),
-      // Add some common keywords that might be useful
-      tool.description
-    ]).filter(Boolean);
+    const suggestions = [];
+    
+    tools.forEach(tool => {
+      // Add basic tool name
+      suggestions.push(tool.name);
+      
+      // Add parameter names
+      suggestions.push(...Object.keys(tool.inputSchema?.properties || {}));
+      
+      // Add tool description
+      if (tool.description) {
+        suggestions.push(tool.description);
+      }
+      
+      // Add tool usage examples with parameter values for tools that have required parameters
+      if (tool.inputSchema?.required && tool.inputSchema.required.length > 0) {
+        const examples = generateToolExamples(tool);
+        suggestions.push(...examples);
+      }
+    });
+    
+    return suggestions.filter(Boolean);
+  };
+
+  // Generate example usage patterns for tools with required parameters
+  const generateToolExamples = (tool) => {
+    const examples = [];
+    const required = tool.inputSchema?.required || [];
+    const properties = tool.inputSchema?.properties || {};
+    
+    // Common example values for different parameter types
+    const exampleValues = {
+      'toolset': ['github', 'docker', 'npm', 'python'],
+      'repository': ['owner/repo', 'accentureshark/mentor'],
+      'owner': ['github', 'microsoft', 'google'],
+      'repo': ['mentor', 'vscode', 'react'],
+      'path': ['README.md', 'src/main.js', 'package.json'],
+      'query': ['search term', 'example query'],
+      'type': ['public', 'private', 'all'],
+      'language': ['javascript', 'python', 'java'],
+      'file': ['index.js', 'app.py', 'Main.java'],
+      'branch': ['main', 'develop', 'feature/branch'],
+      'tag': ['v1.0.0', 'latest'],
+      'issue_number': ['1', '42'],
+      'pull_number': ['1', '10']
+    };
+    
+    // Special case for enable_toolset - create natural language examples
+    if (tool.name === 'enable_toolset' && required.includes('toolset')) {
+      exampleValues.toolset.forEach(toolset => {
+        examples.push(`enable toolset ${toolset}`);
+      });
+      return examples;
+    }
+    
+    // For other tools, generate examples by combining tool name with parameter examples
+    if (required.length > 0) {
+      // Get the first required parameter and create examples
+      const firstRequired = required[0];
+      const paramExamples = exampleValues[firstRequired] || ['example'];
+      
+      paramExamples.slice(0, 2).forEach(value => { // Limit to 2 examples per tool
+        examples.push(`${tool.name} ${firstRequired}:${value}`);
+      });
+    }
+    
+    return examples;
   };
 
   // Find current word at cursor position
@@ -222,10 +283,14 @@ const AutocompleteTextarea = ({
               >
                 <div className="autocomplete-item-content">
                   <span className="autocomplete-item-text">{suggestion}</span>
-                  {/* Highlight matching part */}
+                  {/* Highlight matching part and show additional info */}
                   <span className="autocomplete-item-match">
                     {autocompletePrefix && suggestion.toLowerCase().includes(autocompletePrefix.toLowerCase()) && (
                       <small>matches: {autocompletePrefix}</small>
+                    )}
+                    {/* Show if this is an example with parameters */}
+                    {(suggestion.includes(' ') && (suggestion.includes('enable toolset') || suggestion.includes(':'))) && (
+                      <small className="autocomplete-example-hint">💡 example usage</small>
                     )}
                   </span>
                 </div>

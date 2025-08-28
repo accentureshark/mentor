@@ -90,8 +90,18 @@
   font-style: italic;
 }
 
+.autocomplete-example-hint {
+  color: #28a745 !important;
+  font-weight: 500;
+  margin-left: 0.5rem;
+}
+
 .autocomplete-item.selected .autocomplete-item-match {
   color: rgba(255, 255, 255, 0.8);
+}
+
+.autocomplete-item.selected .autocomplete-example-hint {
+  color: rgba(40, 167, 69, 0.9) !important;
 }
 
 .autocomplete-footer {
