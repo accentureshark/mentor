@@ -163,6 +163,13 @@ public class McpServerService {
                     return connectWebSocket(server);
                 case "tcp":
                     return connectTcp(server);
+                case "unknown":
+                    String errorMsg = "Invalid URL format: " + server.getUrl();
+                    log.warn("Invalid URL for server: {}", server.getName());
+                    server.setStatus("ERROR");
+                    server.setLastConnected(System.currentTimeMillis());
+                    server.setLastError(errorMsg);
+                    return server;
                 default:
                     log.warn("Unsupported protocol: {} for server: {}", protocol, server.getName());
                     server.setStatus("ERROR");
@@ -171,7 +178,7 @@ public class McpServerService {
                     return server;
             }
         } catch (Exception e) {
-            String errorMsg = e.getClass().getSimpleName() + ": " + (e.getMessage() != null ? e.getMessage() : "Connection failed");
+            String errorMsg = createDescriptiveErrorMessage(e, server.getUrl(), protocol);
             log.error("Connection failed for server {}: {}", server.getName(), errorMsg, e);
             server.setStatus("ERROR");
             server.setLastConnected(System.currentTimeMillis());
@@ -185,6 +192,203 @@ public class McpServerService {
             return "unknown";
         }
         return url.substring(0, url.indexOf("://"));
+    }
+
+    /**
+     * Creates a descriptive error message based on the exception type and context
+     */
+    private String createDescriptiveErrorMessage(Exception e, String url, String protocol) {
+        String baseMessage = e.getMessage() != null ? e.getMessage() : "";
+        
+        if (e instanceof UnknownHostException) {
+            try {
+                URI uri = URI.create(url);
+                String host = uri.getHost();
+                if (host != null) {
+                    return String.format("Host '%s' does not exist or cannot be resolved", host);
+                }
+            } catch (Exception ex) {
+                // Fallback if URI parsing fails
+            }
+            return "Host does not exist or cannot be resolved: " + baseMessage;
+        }
+        
+        if (e instanceof ConnectException) {
+            // Check if the cause is UnresolvedAddressException (hostname not found)  
+            Throwable cause = e.getCause();
+            if (cause instanceof java.nio.channels.UnresolvedAddressException) {
+                try {
+                    URI uri = URI.create(url);
+                    String host = uri.getHost();
+                    if (host != null) {
+                        return String.format("Host '%s' does not exist or cannot be resolved", host);
+                    }
+                } catch (Exception ex) {
+                    // Fallback
+                }
+                return "Host does not exist or cannot be resolved";
+            }
+            
+            // Check for null message which usually indicates hostname resolution issues
+            if (baseMessage.isEmpty() && cause != null) {
+                // For ConnectException with null message, this usually means hostname resolution failed
+                try {
+                    URI uri = URI.create(url);
+                    String host = uri.getHost();
+                    if (host != null) {
+                        return String.format("Host '%s' does not exist or cannot be resolved", host);
+                    }
+                } catch (Exception ex) {
+                    // Fallback
+                }
+                return "Host does not exist or cannot be resolved";
+            }
+            
+            if (baseMessage.toLowerCase().contains("connection refused")) {
+                try {
+                    URI uri = URI.create(url);
+                    String host = uri.getHost();
+                    int port = uri.getPort();
+                    if (port == -1) {
+                        port = "https".equals(protocol) ? 443 : 80;
+                    }
+                    if (host != null) {
+                        return String.format("Connection refused to host '%s' on port %d - port may not be open or service may not be running", 
+                                host, port);
+                    }
+                } catch (Exception ex) {
+                    // Fallback if URI parsing fails
+                }
+                return "Connection refused - port may not be open or service may not be running";
+            }
+            return "Connection failed: " + baseMessage;
+        }
+        
+        if (e instanceof SocketTimeoutException) {
+            return "Connection timeout - the server did not respond within the expected time";
+        }
+        
+        if (e instanceof java.net.http.HttpTimeoutException) {
+            return "HTTP request timeout - the server did not respond within the expected time";
+        }
+        
+        if (e instanceof java.net.http.HttpConnectTimeoutException) {
+            return "HTTP connection timeout - unable to establish connection within the expected time";
+        }
+        
+        if (e instanceof IOException && baseMessage.toLowerCase().contains("no route to host")) {
+            return "No route to host - network may be unreachable";
+        }
+        
+        if (e instanceof IllegalArgumentException && (baseMessage.toLowerCase().contains("uri") || 
+            baseMessage.toLowerCase().contains("url") || baseMessage.toLowerCase().contains("malformed"))) {
+            return "Invalid URL format: " + url;
+        }
+        
+        // Check for specific network-related IOException messages
+        if (e instanceof IOException) {
+            String lowerMessage = baseMessage.toLowerCase();
+            if (lowerMessage.contains("name resolution failed") || 
+                lowerMessage.contains("nodename nor servname") ||
+                lowerMessage.contains("no address associated") ||
+                lowerMessage.contains("name or service not known") ||
+                lowerMessage.contains("host not found") ||
+                lowerMessage.contains("unknown host")) {
+                try {
+                    URI uri = URI.create(url);
+                    String host = uri.getHost();
+                    if (host != null) {
+                        return String.format("Host '%s' does not exist or cannot be resolved", host);
+                    }
+                } catch (Exception ex) {
+                    // Fallback
+                }
+                return "Host does not exist or cannot be resolved";
+            }
+        }
+        
+        // Handle HttpConnectTimeoutException specifically
+        if (e.getCause() instanceof UnknownHostException) {
+            try {
+                URI uri = URI.create(url);
+                String host = uri.getHost();
+                if (host != null) {
+                    return String.format("Host '%s' does not exist or cannot be resolved", host);
+                }
+            } catch (Exception ex) {
+                // Fallback
+            }
+            return "Host does not exist or cannot be resolved";
+        }
+        
+        // Default fallback for other exceptions
+        String exceptionType = e.getClass().getSimpleName();
+        if (baseMessage.isEmpty()) {
+            return exceptionType + ": Connection failed";
+        }
+        return exceptionType + ": " + baseMessage;
+    }
+
+    /**
+     * Checks if the server response indicates MCP protocol support
+     */
+    private boolean isMcpCompliantResponse(HttpResponse<String> response) {
+        if (response == null) return false;
+        
+        // Check response headers for MCP indicators
+        String contentType = response.headers().firstValue("content-type").orElse("");
+        if (contentType.contains("application/json")) {
+            String body = response.body();
+            if (body != null) {
+                // Check for JSON-RPC structure which is typical for MCP
+                return body.contains("jsonrpc") || body.contains("\"id\"") || 
+                       body.contains("\"method\"") || body.contains("\"result\"") ||
+                       body.contains("tools") || body.contains("resources");
+            }
+        }
+        
+        // Check for specific MCP-related headers
+        return response.headers().map().keySet().stream()
+                .anyMatch(header -> header.toLowerCase().contains("mcp") || 
+                         header.toLowerCase().contains("json-rpc"));
+    }
+
+    /**
+     * Creates an error message for HTTP status codes with MCP context
+     */
+    private String createHttpStatusErrorMessage(int statusCode, String endpoint, boolean mcpCompliant) {
+        String baseMessage = String.format("HTTP %d from %s", statusCode, endpoint);
+        
+        switch (statusCode) {
+            case 404:
+                if (!mcpCompliant) {
+                    return baseMessage + " - endpoint not found, server may not implement MCP protocol";
+                }
+                return baseMessage + " - endpoint not found";
+            case 405:
+                if (!mcpCompliant) {
+                    return baseMessage + " - method not allowed, server may not implement MCP protocol correctly";
+                }
+                return baseMessage + " - method not allowed";
+            case 500:
+                return baseMessage + " - internal server error";
+            case 502:
+                return baseMessage + " - bad gateway, server may be down";
+            case 503:
+                return baseMessage + " - service unavailable, server may be overloaded";
+            case 504:
+                return baseMessage + " - gateway timeout";
+            default:
+                if (statusCode >= 400 && statusCode < 500) {
+                    if (!mcpCompliant) {
+                        return baseMessage + " - client error, server may not implement MCP protocol";
+                    }
+                    return baseMessage + " - client error";
+                } else if (statusCode >= 500) {
+                    return baseMessage + " - server error";
+                }
+                return baseMessage;
+        }
     }
 
 
@@ -209,14 +413,45 @@ public class McpServerService {
             server.setLastError(null);
             log.info("Stdio connection established with {}", server.getName());
         } catch (Exception e) {
-            String errorMsg = e.getClass().getSimpleName() + ": " + (e.getMessage() != null ? e.getMessage() : "Connection failed");
+            String errorMsg = createStdioErrorMessage(e, server.getUrl());
             log.error("Error connecting stdio to {}: {}", server.getName(), errorMsg, e);
             server.setStatus("ERROR");
             server.setLastConnected(System.currentTimeMillis());
             server.setLastError(errorMsg);
-            throw new RuntimeException("Stdio connection failure: " + errorMsg);
+            // Only throw runtime exception for unexpected errors, not validation errors
+            if (!(e instanceof IOException && (
+                    e.getMessage().toLowerCase().contains("cannot run program") ||
+                    e.getMessage().toLowerCase().contains("no such file")))) {
+                throw new RuntimeException("Stdio connection failure: " + errorMsg);
+            }
         }
         return server;
+    }
+
+    /**
+     * Creates a descriptive error message for stdio connection failures
+     */
+    private String createStdioErrorMessage(Exception e, String url) {
+        String command = url.substring("stdio://".length()).trim();
+        
+        if (e instanceof IOException) {
+            String message = e.getMessage() != null ? e.getMessage() : "";
+            if (message.toLowerCase().contains("cannot run program")) {
+                return String.format("Command not found or not executable: '%s'", command);
+            } else if (message.toLowerCase().contains("no such file")) {
+                return String.format("Command not found: '%s'", command);
+            } else if (message.toLowerCase().contains("permission denied")) {
+                return String.format("Permission denied executing command: '%s'", command);
+            }
+            return String.format("Failed to execute stdio command '%s': %s", command, message);
+        }
+        
+        if (e instanceof SecurityException) {
+            return String.format("Security error executing command '%s': %s", command, e.getMessage());
+        }
+        
+        return String.format("Stdio connection error with command '%s': %s", command, 
+                e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
     }
 
     private void startStdioProcess(McpServer server) throws IOException {
@@ -296,25 +531,28 @@ public class McpServerService {
                         server.setStatus("CONNECTED");
                         server.setLastError(null);
                     } else {
-                        String errorMsg = String.format("HTTP %d from tools endpoint", toolsResponse.statusCode());
+                        boolean mcpCompliant = isMcpCompliantResponse(toolsResponse);
+                        String errorMsg = createHttpStatusErrorMessage(toolsResponse.statusCode(), "tools endpoint", mcpCompliant);
                         log.error("HTTP connection returned status {} for {}", toolsResponse.statusCode(), toolsUrl);
                         server.setStatus("ERROR");
                         server.setLastError(errorMsg);
                     }
                 } else {
-                    String errorMsg = String.format("HTTP %d from root endpoint", rootResponse.statusCode());
+                    boolean mcpCompliant = isMcpCompliantResponse(rootResponse);
+                    String errorMsg = createHttpStatusErrorMessage(rootResponse.statusCode(), "root endpoint", mcpCompliant);
                     log.warn("HTTP connection returned status {} for {}", rootResponse.statusCode(), server.getUrl());
                     server.setStatus("ERROR");
                     server.setLastError(errorMsg);
                 }
             } else {
-                String errorMsg = String.format("HTTP %d from health endpoint", response.statusCode());
+                boolean mcpCompliant = isMcpCompliantResponse(response);
+                String errorMsg = createHttpStatusErrorMessage(response.statusCode(), "health endpoint", mcpCompliant);
                 log.warn("HTTP connection returned status {} for {}", response.statusCode(), server.getUrl());
                 server.setStatus("ERROR");
                 server.setLastError(errorMsg);
             }
         } catch (Exception e) {
-            String errorMsg = e.getClass().getSimpleName() + ": " + (e.getMessage() != null ? e.getMessage() : "Connection failed");
+            String errorMsg = createDescriptiveErrorMessage(e, server.getUrl(), "http");
             log.error("HTTP connection error to {}: {}", server.getName(), errorMsg, e);
             server.setStatus("ERROR");
             server.setLastError(errorMsg);
@@ -332,6 +570,15 @@ public class McpServerService {
             String host = uri.getHost();
             int port = uri.getPort();
 
+            if (host == null) {
+                String errorMsg = "Invalid WebSocket URL: missing host in " + server.getUrl();
+                log.error("WebSocket connection error to {}: {}", server.getName(), errorMsg);
+                server.setStatus("ERROR");
+                server.setLastError(errorMsg);
+                server.setLastConnected(System.currentTimeMillis());
+                return server;
+            }
+
             if (port == -1) {
                 port = uri.getScheme().equals("wss") ? 443 : 80;
             }
@@ -340,10 +587,13 @@ public class McpServerService {
                 socket.connect(new InetSocketAddress(host, port), 5000);
                 log.info("WebSocket TCP connection successful to {}:{}", host, port);
                 server.setStatus("CONNECTED");
+                server.setLastError(null);
             }
         } catch (Exception e) {
-            log.error("WebSocket connection error to {}: {}", server.getName(), e.getMessage());
+            String errorMsg = createDescriptiveErrorMessage(e, server.getUrl(), "websocket");
+            log.error("WebSocket connection error to {}: {}", server.getName(), errorMsg);
             server.setStatus("ERROR");
+            server.setLastError(errorMsg);
         }
 
         server.setLastConnected(System.currentTimeMillis());
@@ -358,14 +608,35 @@ public class McpServerService {
             String host = uri.getHost();
             int port = uri.getPort();
 
+            if (host == null) {
+                String errorMsg = "Invalid TCP URL: missing host in " + server.getUrl();
+                log.error("TCP connection error to {}: {}", server.getName(), errorMsg);
+                server.setStatus("ERROR");
+                server.setLastError(errorMsg);
+                server.setLastConnected(System.currentTimeMillis());
+                return server;
+            }
+
+            if (port == -1) {
+                String errorMsg = "Invalid TCP URL: missing port in " + server.getUrl();
+                log.error("TCP connection error to {}: {}", server.getName(), errorMsg);
+                server.setStatus("ERROR");
+                server.setLastError(errorMsg);
+                server.setLastConnected(System.currentTimeMillis());
+                return server;
+            }
+
             try (Socket socket = new Socket()) {
                 socket.connect(new InetSocketAddress(host, port), 5000);
                 log.info("TCP connection successful to {}:{}", host, port);
                 server.setStatus("CONNECTED");
+                server.setLastError(null);
             }
         } catch (Exception e) {
-            log.error("TCP connection error to {}: {}", server.getName(), e.getMessage());
+            String errorMsg = createDescriptiveErrorMessage(e, server.getUrl(), "tcp");
+            log.error("TCP connection error to {}: {}", server.getName(), errorMsg);
             server.setStatus("ERROR");
+            server.setLastError(errorMsg);
         }
 
         server.setLastConnected(System.currentTimeMillis());
