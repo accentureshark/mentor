@@ -104,6 +104,21 @@ public class ChatService {
             // Just return null so the frontend knows there's no initial message
             return null;
         }
+        
+        // Handle special commands that should not be processed as tool calls
+        if ("enable_toolset".equals(query.trim())) {
+            // This is a special command for dynamic toolsets - acknowledge it but don't process as tool call
+            ChatMessage acknowledgeMessage = ChatMessage.builder()
+                    .id(UUID.randomUUID().toString())
+                    .role("ASSISTANT")
+                    .content("✅ Dynamic toolsets enabled for " + server.getName())
+                    .timestamp(System.currentTimeMillis())
+                    .serverId(request.getServerId())
+                    .build();
+            addMessageToConversation(conversationId, acknowledgeMessage);
+            log.info("Acknowledged dynamic toolset enablement for conversation {}", conversationId);
+            return acknowledgeMessage;
+        }
 
         // Crear y guardar el mensaje del usuario
         ChatMessage userMessage = ChatMessage.builder()
@@ -323,6 +338,21 @@ public class ChatService {
             // For initial connections, don't create any message
             // Just return null so the frontend knows there's no initial message
             return null;
+        }
+        
+        // Handle special commands that should not be processed as tool calls
+        if ("enable_toolset".equals(query.trim())) {
+            // This is a special command for dynamic toolsets - acknowledge it but don't process as tool call
+            ChatMessage acknowledgeMessage = ChatMessage.builder()
+                    .id(UUID.randomUUID().toString())
+                    .role("ASSISTANT")
+                    .content("✅ Dynamic toolsets enabled for " + server.getName())
+                    .timestamp(System.currentTimeMillis())
+                    .serverId(request.getServerId())
+                    .build();
+            addMessageToConversation(conversationId, acknowledgeMessage);
+            log.info("Acknowledged dynamic toolset enablement for conversation {}", conversationId);
+            return acknowledgeMessage;
         }
 
         ChatMessage userMessage = ChatMessage.builder()
