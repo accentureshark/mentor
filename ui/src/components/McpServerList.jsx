@@ -12,6 +12,7 @@ export const McpServerList = ({ onServerSelect, selectedServerId, onServersUpdat
   const [servers, setServers] = useState([]);
   const [loading, setLoading] = useState(false);
   const toast = useRef(null);
+  const wsRef = useRef(null);
 
   const loadServers = async () => {
     setLoading(true);
@@ -50,6 +51,67 @@ export const McpServerList = ({ onServerSelect, selectedServerId, onServersUpdat
 
   useEffect(() => {
     loadServers();
+  }, []);
+
+  // Set up WebSocket connection for real-time config updates
+  useEffect(() => {
+    const connectWebSocket = () => {
+      try {
+        const ws = new WebSocket('ws://localhost:8083/ws/mcp-config');
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          console.log('WebSocket connected for MCP config updates');
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            console.log('Received WebSocket message:', message);
+            
+            if (message.type === 'config-reload') {
+              console.log('Configuration reloaded, refreshing server list...');
+              
+              toast.current?.show({
+                severity: 'info',
+                summary: 'Configuration Updated',
+                detail: 'MCP server configuration has been reloaded',
+                life: 3000,
+              });
+              
+              // Reload the server list
+              loadServers();
+            }
+          } catch (error) {
+            console.error('Error parsing WebSocket message:', error);
+          }
+        };
+
+        ws.onclose = (event) => {
+          console.log('WebSocket connection closed:', event.code, event.reason);
+          // Attempt to reconnect after 3 seconds
+          setTimeout(connectWebSocket, 3000);
+        };
+
+        ws.onerror = (error) => {
+          console.error('WebSocket error:', error);
+        };
+      } catch (error) {
+        console.error('Failed to create WebSocket connection:', error);
+        // Retry connection after 5 seconds
+        setTimeout(connectWebSocket, 5000);
+      }
+    };
+
+    connectWebSocket();
+
+    // Cleanup function
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
   }, []);
 
   const getStatusSeverity = (status) => {

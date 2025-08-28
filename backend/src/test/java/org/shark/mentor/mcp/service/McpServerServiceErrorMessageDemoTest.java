@@ -4,6 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.shark.mentor.mcp.config.McpProperties;
 import org.shark.mentor.mcp.model.McpServer;
+import org.shark.mentor.mcp.websocket.McpConfigWebSocketHandler;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -17,7 +18,8 @@ class McpServerServiceErrorMessageDemoTest {
     @BeforeEach
     void setUp() {
         McpProperties properties = new McpProperties();
-        service = new McpServerService(properties);
+        McpConfigWebSocketHandler mockWebSocketHandler = new McpConfigWebSocketHandler();
+        service = new McpServerService(properties, mockWebSocketHandler);
     }
 
     @Test

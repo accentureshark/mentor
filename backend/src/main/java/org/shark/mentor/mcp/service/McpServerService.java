@@ -2,17 +2,21 @@ package org.shark.mentor.mcp.service;
 
 import org.shark.mentor.mcp.config.McpProperties;
 import org.shark.mentor.mcp.model.McpServer;
+import org.shark.mentor.mcp.websocket.McpConfigWebSocketHandler;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 
+import jakarta.annotation.PreDestroy;
+
 import java.io.*;
 import java.net.*;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.*;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
@@ -31,9 +35,16 @@ public class McpServerService {
     private final McpProperties properties;
     private final RestTemplate restTemplate;
     private final HttpClient httpClient;
+    private final McpConfigWebSocketHandler webSocketHandler;
+    
+    // File watching fields
+    private WatchService watchService;
+    private Path configPath;
+    private ExecutorService fileWatchExecutor;
 
-    public McpServerService(McpProperties properties) {
+    public McpServerService(McpProperties properties, McpConfigWebSocketHandler webSocketHandler) {
         this.properties = properties;
+        this.webSocketHandler = webSocketHandler;
         this.restTemplate = new RestTemplate();
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
@@ -41,14 +52,15 @@ public class McpServerService {
 
         loadServersFromJson();
         loadServersFromConfig();
+        initializeFileWatcher();
     }
 
     private void loadServersFromJson() {
         ObjectMapper mapper = new ObjectMapper();
         try {
-            var resource = getClass().getClassLoader().getResourceAsStream("mcp-servers.json");
+            var resource = getClass().getClassLoader().getResourceAsStream("mcp.json");
             if (resource == null) {
-                log.warn("mcp-servers.json not found in classpath");
+                log.warn("mcp.json not found in classpath");
                 return;
             }
             JsonNode root = mapper.readTree(resource);
@@ -103,6 +115,130 @@ public class McpServerService {
         addServer(new McpServer("sample-server", "Sample MCP Server",
                 "Fallback server when no configuration is found",
                 "stdio://echo", "DISCONNECTED"));
+    }
+
+    /**
+     * Initialize file watcher to monitor changes to mcp.json
+     */
+    private void initializeFileWatcher() {
+        try {
+            // Try to get the actual file path for mcp.json in resources
+            var resource = getClass().getClassLoader().getResource("mcp.json");
+            if (resource != null && "file".equals(resource.getProtocol())) {
+                configPath = Paths.get(resource.toURI());
+                Path parentDir = configPath.getParent();
+                
+                watchService = FileSystems.getDefault().newWatchService();
+                parentDir.register(watchService, StandardWatchEventKinds.ENTRY_MODIFY);
+                
+                fileWatchExecutor = Executors.newSingleThreadExecutor();
+                fileWatchExecutor.submit(this::watchConfigFile);
+                
+                log.info("File watcher initialized for mcp.json at: {}", configPath);
+            } else {
+                log.warn("Could not initialize file watcher - mcp.json not found as file resource");
+            }
+        } catch (Exception e) {
+            log.error("Failed to initialize file watcher for mcp.json", e);
+        }
+    }
+
+    /**
+     * Watch for changes to the configuration file
+     */
+    private void watchConfigFile() {
+        try {
+            while (!Thread.currentThread().isInterrupted()) {
+                WatchKey key = watchService.take();
+                
+                for (WatchEvent<?> event : key.pollEvents()) {
+                    WatchEvent.Kind<?> kind = event.kind();
+                    
+                    if (kind == StandardWatchEventKinds.OVERFLOW) {
+                        continue;
+                    }
+                    
+                    Path modifiedFile = (Path) event.context();
+                    if (modifiedFile.toString().equals("mcp.json")) {
+                        log.info("Configuration file mcp.json modified, reloading servers...");
+                        reloadConfiguration();
+                    }
+                }
+                
+                boolean valid = key.reset();
+                if (!valid) {
+                    break;
+                }
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.info("File watcher interrupted");
+        } catch (Exception e) {
+            log.error("Error in file watcher", e);
+        }
+    }
+
+    /**
+     * Reload the entire server configuration
+     */
+    public void reloadConfiguration() {
+        try {
+            log.info("Reloading MCP server configuration...");
+            
+            // Clear existing servers (but preserve stdio processes)
+            Map<String, Process> currentProcesses = new HashMap<>(stdioProcesses);
+            Map<String, OutputStream> currentInputs = new HashMap<>(stdioInputs);
+            Map<String, InputStream> currentOutputs = new HashMap<>(stdioOutputs);
+            
+            servers.clear();
+            
+            // Reload configuration
+            loadServersFromJson();
+            loadServersFromConfig();
+            
+            // Clean up stdio processes for servers that no longer exist
+            Set<String> currentServerIds = servers.keySet();
+            currentProcesses.entrySet().removeIf(entry -> {
+                if (!currentServerIds.contains(entry.getKey())) {
+                    try {
+                        entry.getValue().destroyForcibly();
+                        stdioInputs.remove(entry.getKey());
+                        stdioOutputs.remove(entry.getKey());
+                        log.info("Cleaned up stdio process for removed server: {}", entry.getKey());
+                        return true;
+                    } catch (Exception e) {
+                        log.error("Error cleaning up stdio process for {}: {}", entry.getKey(), e.getMessage());
+                    }
+                }
+                return false;
+            });
+            
+            log.info("Configuration reloaded successfully with {} servers", servers.size());
+            
+            // Notify WebSocket clients of the configuration change
+            webSocketHandler.notifyConfigReload();
+            
+        } catch (Exception e) {
+            log.error("Failed to reload configuration", e);
+        }
+    }
+
+    /**
+     * Cleanup file watcher resources
+     */
+    @PreDestroy
+    public void cleanup() {
+        try {
+            if (fileWatchExecutor != null) {
+                fileWatchExecutor.shutdownNow();
+            }
+            if (watchService != null) {
+                watchService.close();
+            }
+            log.info("File watcher resources cleaned up");
+        } catch (Exception e) {
+            log.error("Error cleaning up file watcher resources", e);
+        }
     }
 
     public List<McpServer> getAllServers() {

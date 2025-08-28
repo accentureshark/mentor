@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.shark.mentor.mcp.config.McpProperties;
 import org.shark.mentor.mcp.model.McpServer;
+import org.shark.mentor.mcp.websocket.McpConfigWebSocketHandler;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -47,7 +48,8 @@ class McpServerServiceHttpTest {
     void connectHttpTreats405AsNotFound() {
         int port = httpServer.getAddress().getPort();
         McpProperties properties = new McpProperties();
-        McpServerService service = new McpServerService(properties);
+        McpConfigWebSocketHandler mockWebSocketHandler = new McpConfigWebSocketHandler();
+        McpServerService service = new McpServerService(properties, mockWebSocketHandler);
         McpServer server = new McpServer("test", "Test", "", "http://localhost:" + port, "DISCONNECTED");
         service.addServer(server);
 

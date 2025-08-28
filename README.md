@@ -108,7 +108,7 @@ El backend implementa el Model Content Protocol (MCP), permitiendo:
 - Descubrir y listar herramientas (tools) disponibles en cada servidor MCP.
 - Ejecutar herramientas específicas enviando requests estructurados según el protocolo MCP.
 - Gestionar respuestas y errores de forma estandarizada.
-- Configurar múltiples servidores MCP en `mcp-servers.json`.
+- Configurar múltiples servidores MCP en `mcp.json`.
 
 ## Integración con LLM (Llama)
 
@@ -118,8 +118,9 @@ El backend implementa el Model Content Protocol (MCP), permitiendo:
 
 ## Configuración de Servidores MCP
 
-- Los servidores MCP disponibles se configuran en `src/main/resources/mcp-servers.json`.
+- Los servidores MCP disponibles se configuran en `src/main/resources/mcp.json`.
 - Cada entrada define el id, nombre, descripción, URL y opciones como `prewarm`.
+- El backend detecta automáticamente cambios en este archivo y recarga la configuración dinámicamente.
 - Ejemplo de configuración:
 
 ```json
