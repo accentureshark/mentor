@@ -40,6 +40,12 @@ export const chatService = {
         throw new Error(`Failed to send message: HTTP ${response.status}`);
       }
 
+      // Handle empty response (when backend returns null for initial connections)
+      if (!responseText || responseText.trim() === '') {
+        console.log('✅ Empty response received (initial connection)');
+        return null;
+      }
+
       const parsed = JSON.parse(responseText);
       console.log('✅ Respuesta JSON parseada:', parsed);
 
