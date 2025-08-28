@@ -5,7 +5,7 @@
       "id": "melian-local",
       "name": "Melian MCP Server (Local)",
       "description": "Local MELIAN - Embedding Module and Intelligent Logic for Natural Access",
-      "url": "http://localhost:8080",
+      "url": "http://localhost:9090",
       "implemented": true
     },
     {

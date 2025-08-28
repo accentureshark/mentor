@@ -33,6 +33,19 @@ public class McpToolOrchestrator {
      */
     public String executeTool(McpServer server, String userMessage) {
         try {
+            // Detectar si el mensaje es para enable_toolset (puede ajustarse según UI/lógica real)
+            if (userMessage != null && userMessage.trim().toLowerCase().startsWith("enable toolset")) {
+                // Extraer el nombre del toolset del mensaje, ejemplo: "enable toolset github"
+                String[] parts = userMessage.trim().split("\\s+");
+                String toolsetName = parts.length > 2 ? parts[2] : null;
+                if (toolsetName == null) {
+                    return "Error: Debe especificar el nombre del toolset a habilitar.";
+                }
+                Map<String, Object> params = new HashMap<>();
+                params.put("toolset", toolsetName);
+                // Llamada genérica al método enable_toolset
+                return mcpToolService.callMcpMethodViaHttp(server, "enable_toolset", params);
+            }
             // Obtiene las tools usando el servicio centralizado
             List<Map<String, Object>> availableTools = mcpToolService.getTools(server);
 

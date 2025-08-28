@@ -404,4 +404,27 @@ public class McpToolService {
         log.debug("Respuesta de llamada stdio: {}", result);
         return result;
     }
+
+    // Método genérico para invocar cualquier método MCP vía HTTP
+    public String callMcpMethodViaHttp(McpServer server, String method, Map<String, Object> params) throws IOException, InterruptedException {
+        log.info("Calling MCP method '{}' via HTTP on server: {} with params: {}", method, server.getName(), params);
+        Map<String, Object> mcpCall = Map.of(
+                "jsonrpc", "2.0",
+                "id", UUID.randomUUID().toString(),
+                "method", method,
+                "params", params != null ? params : new HashMap<>()
+        );
+        String json = objectMapper.writeValueAsString(mcpCall);
+        log.debug("Sending MCP method call via HTTP: {}", json);
+        HttpRequest httpRequest = HttpRequest.newBuilder()
+                .uri(URI.create(server.getUrl() + "/mcp"))
+                .timeout(Duration.ofSeconds(10))
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(json))
+                .build();
+        HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+        log.debug("Respuesta de llamada HTTP: {}", response.body());
+        return response.body();
+    }
 }
