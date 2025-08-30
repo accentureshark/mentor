@@ -96,6 +96,7 @@ public class IntelligentToolSelector {
             - "Buscar tablas relacionadas con ventas" -> search_tables
             - "Dame algunos datos de ejemplo de productos" -> sample_data
             - "¿Cuántas filas tiene la tabla usuarios?" -> count_rows
+            - "listame todos los esquemas" -> list_schemas
             - "Mostrar repositorios públicos" -> list_repositories
             - "Buscar repositorio con react" -> search_repositories
             """, serverName, toolsJson);

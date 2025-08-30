@@ -253,6 +253,39 @@ class DataLakeToolingIntegrationTest {
         assertEquals("Mock tool execution: nl_to_sql with {natural_query=clientes que compraron más de 1000 pesos el año pasado}", result);
     }
 
+    @Test
+    void shouldHandleSchemaListingRequest() {
+        // Given: User wants to list all available schemas
+        String userMessage = "listame todos los esquemas";
+        setupMocksForToolExecution("list_schemas", Map.of());
+        
+        // When
+        String result = orchestrator.executeTool(dataLakeServer, userMessage);
+
+        // Then
+        assertEquals("Mock tool execution: list_schemas with {}", result);
+    }
+
+    @Test
+    void shouldHandleSchemaListingVariations() {
+        // Given: User uses variations of schema listing requests
+        String[] variations = {
+            "muestra todos los esquemas disponibles",
+            "¿qué esquemas hay?", 
+            "lista esquemas"
+        };
+        
+        for (String userMessage : variations) {
+            setupMocksForToolExecution("list_schemas", Map.of());
+            
+            // When
+            String result = orchestrator.executeTool(dataLakeServer, userMessage);
+
+            // Then
+            assertEquals("Mock tool execution: list_schemas with {}", result);
+        }
+    }
+
     private void setupMocksForToolExecution(String expectedTool, Map<String, Object> expectedArgs) {
         // Mock the tool service to return our data lake tools
         when(mcpToolService.getTools(dataLakeServer)).thenReturn(dataLakeTools);
