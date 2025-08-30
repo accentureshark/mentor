@@ -5,21 +5,23 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.shark.mentor.mcp.config.PromptProperties;
 import org.shark.mentor.mcp.model.McpServer;
 
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.contains;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class IntelligentToolSelectorTest {
 
     @Mock
     private LlmService llmService;
+    
+    @Mock
+    private PromptProperties promptProperties;
 
     private IntelligentToolSelector intelligentToolSelector;
     private McpServer testServer;
@@ -27,7 +29,13 @@ class IntelligentToolSelectorTest {
 
     @BeforeEach
     void setUp() {
-        intelligentToolSelector = new IntelligentToolSelector(llmService);
+        // Setup lenient mock prompt properties
+        lenient().when(promptProperties.getToolSelectionPrompt()).thenReturn(null); // Will trigger fallback
+        lenient().when(promptProperties.getArgumentExtractionPrompt()).thenReturn(null); // Will trigger fallback
+        lenient().when(promptProperties.buildTranslationPatterns()).thenReturn("");
+        lenient().when(promptProperties.buildTranslationMappings()).thenReturn("");
+        
+        intelligentToolSelector = new IntelligentToolSelector(llmService, promptProperties);
         testServer = new McpServer("test-server", "Data Lake Server", "Data Lake MCP Server", "http://localhost:8080", "active");
         
         // Setup data lake tools similar to the problem statement
