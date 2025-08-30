@@ -28,6 +28,7 @@ import java.util.Map;
 public class LlmServiceEnhanced implements LlmService {
 
     private final LlmProperties props;
+    private final I18nService i18nService;
     private ChatLanguageModel chatModel;
     private final Map<String, ChatMemory> conversationMemories = new ConcurrentHashMap<>();
 
@@ -38,7 +39,9 @@ public class LlmServiceEnhanced implements LlmService {
                 props.getProvider(),
                 props.getModel(),
                 props.getApi().getBaseUrl(),
-                props.getApi().getKey()
+                props.getApi().getKey(),
+                props.getModelConfig().getTemperature(),
+                props.getModelConfig().getTimeoutMinutes()
         );
         log.info("Enhanced LLM model initialized successfully");
     }
@@ -110,98 +113,68 @@ public class LlmServiceEnhanced implements LlmService {
      */
     private String buildContextPrompt(String context, String question) {
         StringBuilder prompt = new StringBuilder();
-        prompt.append("MCP SERVER CONTEXT:\n");
+        prompt.append(i18nService.getMessage("context.mcp")).append(":\n");
         prompt.append(context);
-        prompt.append("\n\nSPECIFIC FORMATTING INSTRUCTIONS:\n");
+        prompt.append("\n\n").append(i18nService.getMessage("instructions.formatting")).append(":\n");
 
         // Determine the type of response based on context content
         if (context.toLowerCase().contains("table") || context.toLowerCase().contains("schema") || context.toLowerCase().contains("column")) {
-            prompt.append("""
-                This appears to be database/table related information:
-                - Use 📁 for table names and 🏗️ for structure information
-                - List columns with their types and descriptions clearly
-                - Include row counts and size information if available
-                - Format as structured lists for easy reading
-                """);
+            prompt.append("This appears to be database/table related information:\n");
+            prompt.append("- Use ").append(i18nService.getMessage("prefix.file")).append(" for table names and ").append(i18nService.getMessage("prefix.structure")).append(" for structure information\n");
+            prompt.append("- List columns with their types and descriptions clearly\n");
+            prompt.append("- Include row counts and size information if available\n");
+            prompt.append("- Format as structured lists for easy reading\n");
         } else if (context.toLowerCase().contains("query") || context.toLowerCase().contains("select") || context.toLowerCase().contains("data")) {
-            prompt.append("""
-                This appears to be query result information:
-                - Use 📊 for query results and 📈 for data summaries
-                - Highlight key findings and patterns in the data
-                - Include record counts and aggregation results
-                - Present data in tabular format when appropriate
-                """);
+            prompt.append("This appears to be query result information:\n");
+            prompt.append("- Use ").append(i18nService.getMessage("prefix.data")).append(" for query results and ").append(i18nService.getMessage("prefix.chart")).append(" for data summaries\n");
+            prompt.append("- Highlight key findings and patterns in the data\n");
+            prompt.append("- Include record counts and aggregation results\n");
+            prompt.append("- Present data in tabular format when appropriate\n");
         } else if (context.toLowerCase().contains("repository") || context.toLowerCase().contains("github") || context.toLowerCase().contains("code")) {
-            prompt.append("""
-                This appears to be code repository information:
-                - Use 💻 for repositories and 🔧 for functions/tools
-                - Include repository details, file structures, or code snippets
-                - Show status information and any execution results
-                """);
+            prompt.append("This appears to be code repository information:\n");
+            prompt.append("- Use ").append(i18nService.getMessage("prefix.code")).append(" for repositories and ").append(i18nService.getMessage("prefix.tool")).append(" for functions/tools\n");
+            prompt.append("- Include repository details, file structures, or code snippets\n");
+            prompt.append("- Show status information and any execution results\n");
         } else {
-            prompt.append("""
-                Organize the information clearly with:
-                - Descriptive titles with appropriate emojis
-                - Information structured in lists
-                - Use of markdown for formatting
-                - Clear separation between elements
-                """);
+            prompt.append("Organize the information clearly with:\n");
+            prompt.append("- Descriptive titles with appropriate emojis\n");
+            prompt.append("- Information structured in lists\n");
+            prompt.append("- Use of markdown for formatting\n");
+            prompt.append("- Clear separation between elements\n");
         }
 
-        prompt.append("\nAlways end with: 💡 *Información proporcionada por el servidor MCP*");
+        prompt.append("\nAlways end with: ").append(i18nService.getMessage("info.provided.by", "el servidor MCP"));
         return prompt.toString();
     }
 
     /**
-     * Build MCP-compliant system prompt that ensures Spanish responses and focuses on tool understanding
+     * Build MCP-compliant system prompt that ensures localized responses and focuses on tool understanding
      */
     private String buildSystemPrompt() {
-        return """
-            You are a helpful assistant that works with MCP (Model Context Protocol) servers.
-            You specialize in understanding and executing tool requests across different domains like data lakes, GitHub, files, APIs, and more.
-
-            Important guidelines:
-            1. Respond ONLY using information provided in the context of MCP servers
-            2. Do not infer or add information that is not explicitly indicated in the context
-            3. If the context is insufficient to answer the question, clearly state what information is missing
-            4. Be precise and factual in your responses
-            5. When relevant, mention which MCP server provided the information
-            6. ALWAYS respond in Spanish, regardless of the language of the question
-            7. Focus on helping users understand the capabilities and results of MCP tools
-
-            RESPONSE FORMAT:
-            - Use clear titles and subtitles with appropriate emojis
-            - For data queries: 📊 title, 📈 results, 📋 summary
-            - For tables/schemas: 📁 name, 🏗️ structure, 📏 size
-            - For files: 📄 name, 📏 size, 📅 date
-            - For code/GitHub: 💻 repository, 🔧 function, 📊 status
-            - For APIs/tools: ⚙️ tool name, 🎯 purpose, 📝 results
-            - Organize information in numbered or bulleted lists
-            - Use proper spacing between sections
-            - If there are multiple results, list them clearly
-
-            Examples for different MCP server types:
-            
-            📊 **Data Lake Query Results**
-            🎯 **Consulta:** [user query]
-            📈 **Resultados encontrados:** X registros
-            📋 **Resumen:**
-            - [Key findings]
-            
-            📁 **Tabla: [table_name]**
-            🏗️ **Estructura:**
-            - Campo 1: [type] - [description]
-            - Campo 2: [type] - [description]
-            📏 **Registros:** X filas
-            
-            💻 **Repositorio: [repo_name]**
-            🔧 **Función ejecutada:** [tool_name]
-            📊 **Estado:** [status]
-            📝 **Resultado:** [description]
-
-            Always maintain accuracy and transparency about the limitations of the available context.
-            All responses must be in Spanish and well formatted.
-            Adapt the format based on the type of MCP server and tool being used.
-            """;
+        String currentLocale = i18nService.getCurrentLocale().toString();
+        
+        return "You are a helpful assistant that works with MCP (Model Context Protocol) servers.\n" +
+            "You specialize in understanding and executing tool requests across different domains like data lakes, GitHub, files, APIs, and more.\n\n" +
+            "Important guidelines:\n" +
+            "1. Respond ONLY using information provided in the context of MCP servers\n" +
+            "2. Do not infer or add information that is not explicitly indicated in the context\n" +
+            "3. If the context is insufficient to answer the question, clearly state what information is missing\n" +
+            "4. Be precise and factual in your responses\n" +
+            "5. When relevant, mention which MCP server provided the information\n" +
+            "6. Respond in the user's preferred language (current locale: " + currentLocale + ")\n" +
+            "7. Focus on helping users understand the capabilities and results of MCP tools\n\n" +
+            "RESPONSE FORMAT:\n" +
+            "- Use clear titles and subtitles with appropriate emojis\n" +
+            "- For data queries: " + i18nService.getMessage("prefix.data") + " title, " + i18nService.getMessage("prefix.chart") + " results, summary\n" +
+            "- For tables/schemas: " + i18nService.getMessage("prefix.file") + " name, " + i18nService.getMessage("prefix.structure") + " structure, size\n" +
+            "- For files: file name, size, date\n" +
+            "- For code/GitHub: " + i18nService.getMessage("prefix.code") + " repository, " + i18nService.getMessage("prefix.tool") + " function, status\n" +
+            "- For APIs/tools: tool name, purpose, results\n" +
+            "- Organize information in numbered or bulleted lists\n" +
+            "- Use proper spacing between sections\n" +
+            "- If there are multiple results, list them clearly\n\n" +
+            "Always maintain accuracy and transparency about the limitations of the available context.\n" +
+            "All responses must be well formatted and in the user's preferred language.\n" +
+            "Adapt the format based on the type of MCP server and tool being used.";
     }
 }

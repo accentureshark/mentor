@@ -15,11 +15,36 @@ llm:
     default: "You are a helpful assistant. Answer the following question: {question}"
     quiz: "You are a quiz assistant. Answer the following question: {question}"
     chat: "You are a chat assistant. Respond to the user's message: {message}"
-  provider: ollama      # ollama | openai | localai | bedrock | ...
-  model: hf.co/unsloth/gemma-3n-E4B-it-GGUF:Q4_K_XL         # el modelo a usar
+  provider: ${LLM_PROVIDER:ollama}      # ollama | openai | localai | bedrock | ...
+  model: ${LLM_MODEL:hf.co/unsloth/gemma-3n-E4B-it-GGUF:Q4_K_XL}         # el modelo a usar
   api:
-    base-url: http://localhost:11434
-    key: ""             # solo necesario si el proveedor lo requiere
+    base-url: ${LLM_BASE_URL:http://localhost:11434}
+    key: ${LLM_API_KEY:}             # solo necesario si el proveedor lo requiere
+  model-config:
+    temperature: ${LLM_TEMPERATURE:0.7}
+    timeout-minutes: ${LLM_TIMEOUT_MINUTES:2}
+    default-locale: ${LLM_DEFAULT_LOCALE:en}
+
+ui:
+  locale: ${UI_LOCALE:en}
+  messages:
+    success-prefix: ${UI_SUCCESS_PREFIX:✅}
+    error-prefix: ${UI_ERROR_PREFIX:❌}
+    warning-prefix: ${UI_WARNING_PREFIX:⚠️}
+    info-prefix: ${UI_INFO_PREFIX:💡}
+    data-prefix: ${UI_DATA_PREFIX:📊}
+    tool-prefix: ${UI_TOOL_PREFIX:🔧}
+    code-prefix: ${UI_CODE_PREFIX:💻}
+    file-prefix: ${UI_FILE_PREFIX:📁}
+    structure-prefix: ${UI_STRUCTURE_PREFIX:🏗️}
+    chart-prefix: ${UI_CHART_PREFIX:📈}
+    successful-contact: ${UI_MSG_SUCCESS_CONTACT:Successfully contacted %s, but no specific data was returned for: "%s"}
+    response-from: ${UI_MSG_RESPONSE_FROM:Response from %s}
+    information-provided-by: ${UI_MSG_INFO_PROVIDED:Information provided by %s}
+    dynamic-toolsets-enabled: ${UI_MSG_TOOLS_ENABLED:Dynamic toolsets enabled for %s}
+    mcp-server-context: ${UI_MSG_MCP_CONTEXT:MCP SERVER CONTEXT}
+    formatting-instructions: ${UI_MSG_FORMATTING:SPECIFIC FORMATTING INSTRUCTIONS}
+    search-keywords: ${UI_SEARCH_KEYWORDS:search,find,buscar,encuentra}
 
   jackson:
     serialization:
