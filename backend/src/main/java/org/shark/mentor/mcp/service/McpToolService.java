@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.shark.mentor.mcp.model.McpServer;
 import org.shark.mentor.mcp.config.UiProperties;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.io.*;
 import java.net.URI;
@@ -24,6 +25,7 @@ public class McpToolService {
     private final McpServerService mcpServerService;
     private final UiProperties uiProperties;
 
+    @Autowired
     public McpToolService(McpServerService mcpServerService, UiProperties uiProperties) {
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))

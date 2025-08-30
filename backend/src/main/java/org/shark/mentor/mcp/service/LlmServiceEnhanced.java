@@ -9,6 +9,7 @@ import dev.langchain4j.model.chat.ChatLanguageModel;
 import lombok.extern.slf4j.Slf4j;
 import org.shark.mentor.mcp.config.LlmProperties;
 import org.shark.mentor.mcp.config.UiProperties;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
@@ -32,17 +33,10 @@ public class LlmServiceEnhanced implements LlmService {
     private final Map<String, ChatMemory> conversationMemories = new ConcurrentHashMap<>();
     
     // Primary constructor
+    @Autowired
     public LlmServiceEnhanced(LlmProperties props, I18nService i18nService) {
         this.props = props;
         this.i18nService = i18nService;
-    }
-    
-    // Backward compatibility constructor for tests
-    public LlmServiceEnhanced(LlmProperties props) {
-        this.props = props;
-        UiProperties uiProps = new UiProperties();
-        uiProps.setLocale("en");
-        this.i18nService = new I18nService(uiProps);
     }
 
     @jakarta.annotation.PostConstruct

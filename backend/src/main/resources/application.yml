@@ -38,7 +38,7 @@ ui:
     file-prefix: ${UI_FILE_PREFIX:📁}
     structure-prefix: ${UI_STRUCTURE_PREFIX:🏗️}
     chart-prefix: ${UI_CHART_PREFIX:📈}
-    successful-contact: ${UI_MSG_SUCCESS_CONTACT:Successfully contacted %s, but no specific data was returned for: "%s"}
+    successful-contact: ${UI_MSG_SUCCESS_CONTACT}
     response-from: ${UI_MSG_RESPONSE_FROM:Response from %s}
     information-provided-by: ${UI_MSG_INFO_PROVIDED:Information provided by %s}
     dynamic-toolsets-enabled: ${UI_MSG_TOOLS_ENABLED:Dynamic toolsets enabled for %s}

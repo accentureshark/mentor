@@ -7,6 +7,7 @@ import org.shark.mentor.mcp.model.ChatMessage;
 import org.shark.mentor.mcp.model.McpRequest;
 import org.shark.mentor.mcp.model.McpServer;
 import org.shark.mentor.mcp.config.UiProperties;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
@@ -32,6 +33,7 @@ public class ChatService {
     private final LlmServiceEnhanced enhancedLlmService;
     private final boolean useSimplifiedImplementation;
 
+    @Autowired
     public ChatService(McpServerService mcpServerService,
                       LlmService llmService,
                       Optional<McpToolOrchestrator> mcpToolOrchestrator,
@@ -42,8 +44,6 @@ public class ChatService {
         this.llmService = llmService;
         this.mcpToolService = mcpToolService;
         this.i18nService = i18nService;
-
-        // Use simplified implementation if available
         this.mcpToolOrchestrator = mcpToolOrchestrator.orElse(null);
         this.enhancedLlmService = enhancedLlmService.orElse(null);
         this.useSimplifiedImplementation = this.mcpToolOrchestrator != null && this.enhancedLlmService != null;
@@ -511,3 +511,4 @@ public class ChatService {
         }
     }
 }
+

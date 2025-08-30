@@ -7,6 +7,7 @@ import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.output.Response;
 import org.junit.jupiter.api.Test;
 import org.shark.mentor.mcp.config.LlmProperties;
+import org.shark.mentor.mcp.config.UiProperties;
 
 import java.lang.reflect.Field;
 import java.util.List;
@@ -20,7 +21,10 @@ class LlmServiceEnhancedTest {
     @Test
     void generateWithMemoryReturnsSpanishResponse() throws Exception {
         LlmProperties props = new LlmProperties();
-        LlmServiceEnhanced service = new LlmServiceEnhanced(props);
+        UiProperties uiProps = new UiProperties();
+        uiProps.setLocale("es");
+        I18nService i18nService = new I18nService(uiProps);
+        LlmServiceEnhanced service = new LlmServiceEnhanced(props, i18nService);
 
         ChatLanguageModel model = mock(ChatLanguageModel.class);
         var captor = forClass(List.class);
