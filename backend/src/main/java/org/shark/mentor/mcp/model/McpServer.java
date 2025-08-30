@@ -23,6 +23,7 @@ public class McpServer {
     private String lastError;
     private String protocol;
     private Boolean implemented;
+    private McpCapabilities capabilities;
 
 
 

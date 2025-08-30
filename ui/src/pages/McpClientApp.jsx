@@ -3,9 +3,12 @@ import { McpHeader } from '../components/McpHeader';
 import { McpServerList } from '../components/McpServerList';
 import { ChatInterface } from '../components/ChatInterface';
 import { ToolsModal } from '../components/ToolsModal';
+import McpFeaturesPanel from '../components/McpFeaturesPanel';
 import { Splitter, SplitterPanel } from 'primereact/splitter';
+import { TabView, TabPanel } from 'primereact/tabview';
 import { getServerTools } from '../services/toolService';
 import '../styles/mcp-client-app.css';
+import '../styles/mcp-features.css';
 
 const McpClientApp = () => {
   const [selectedServer, setSelectedServer] = useState(null);
@@ -79,10 +82,17 @@ const McpClientApp = () => {
               )}
             </SplitterPanel>
             <SplitterPanel size={sidebarCollapsed ? 100 : 100 - sidebarSize} className="mcp-client-chat">
-              <ChatInterface
-                selectedServer={selectedServer}
-                toolsAcknowledged={toolsAcknowledged.has(selectedServer?.id)}
-              />
+              <TabView>
+                <TabPanel header="Chat">
+                  <ChatInterface
+                    selectedServer={selectedServer}
+                    toolsAcknowledged={toolsAcknowledged.has(selectedServer?.id)}
+                  />
+                </TabPanel>
+                <TabPanel header="MCP Features">
+                  <McpFeaturesPanel selectedServer={selectedServer} />
+                </TabPanel>
+              </TabView>
             </SplitterPanel>
           </Splitter>
         </div>
