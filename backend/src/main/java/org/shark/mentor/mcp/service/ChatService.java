@@ -31,6 +31,7 @@ public class ChatService {
     // Optional dependencies for simplified implementation
     private final McpToolOrchestrator mcpToolOrchestrator;
     private final LlmServiceEnhanced enhancedLlmService;
+    private final IntelligentToolSelector intelligentToolSelector;
     private final boolean useSimplifiedImplementation;
 
     @Autowired
@@ -38,6 +39,7 @@ public class ChatService {
                       LlmService llmService,
                       Optional<McpToolOrchestrator> mcpToolOrchestrator,
                       Optional<LlmServiceEnhanced> enhancedLlmService,
+                      Optional<IntelligentToolSelector> intelligentToolSelector,
                       McpToolService mcpToolService,
                       I18nService i18nService) {
         this.mcpServerService = mcpServerService;
@@ -46,6 +48,7 @@ public class ChatService {
         this.i18nService = i18nService;
         this.mcpToolOrchestrator = mcpToolOrchestrator.orElse(null);
         this.enhancedLlmService = enhancedLlmService.orElse(null);
+        this.intelligentToolSelector = intelligentToolSelector.orElse(null);
         this.useSimplifiedImplementation = this.mcpToolOrchestrator != null && this.enhancedLlmService != null;
         
         if (useSimplifiedImplementation) {
@@ -62,7 +65,7 @@ public class ChatService {
                       Optional<LlmServiceEnhanced> enhancedLlmService,
                       McpToolService mcpToolService) {
         this(mcpServerService, llmService, mcpToolOrchestrator, enhancedLlmService, 
-             mcpToolService, createDefaultI18nService());
+             Optional.empty(), mcpToolService, createDefaultI18nService());
     }
     
     private static I18nService createDefaultI18nService() {
@@ -441,13 +444,26 @@ public class ChatService {
 
             // Determine the appropriate tool based on the message
             List<Map<String, Object>> availableTools = mcpToolService.getTools(server);
-            String toolName = mcpToolService.selectBestTool(message, server);
-            Map<String, Object> toolSchema = availableTools.stream()
-                    .filter(t -> toolName.equals(t.get("name")))
-                    .findFirst()
-                    .orElse(null);
-            Map<String, Object> toolArgs = mcpToolService.extractToolArguments(message, toolName,
-                    toolSchema != null ? (Map<String, Object>) toolSchema.get("inputSchema") : null);
+            String toolName;
+            Map<String, Object> toolArgs;
+            
+            // Use IntelligentToolSelector if available, otherwise fallback to old method
+            if (intelligentToolSelector != null) {
+                toolName = intelligentToolSelector.selectBestTool(message, availableTools, server);
+                Map<String, Object> toolSchema = availableTools.stream()
+                        .filter(t -> toolName.equals(t.get("name")))
+                        .findFirst()
+                        .orElse(null);
+                toolArgs = intelligentToolSelector.extractToolArguments(message, toolName, toolSchema, server);
+            } else {
+                toolName = mcpToolService.selectBestTool(message, server);
+                Map<String, Object> toolSchema = availableTools.stream()
+                        .filter(t -> toolName.equals(t.get("name")))
+                        .findFirst()
+                        .orElse(null);
+                toolArgs = mcpToolService.extractToolArguments(message, toolName,
+                        toolSchema != null ? (Map<String, Object>) toolSchema.get("inputSchema") : null);
+            }
 
             // Use tools/call with the selected tool
             String response = mcpToolService.callToolViaStdio(server, stdin, stdout, toolName, toolArgs);
@@ -481,17 +497,29 @@ public class ChatService {
             List<Map<String, Object>> availableTools = mcpToolService.getTools(server);
             log.debug("Available tools on {}: {}", server.getName(), availableTools);
 
-            // Select the best tool
-            String selectedTool = mcpToolService.selectBestTool(message, server);
-            log.debug("Selected tool for '{}': {}", message, selectedTool);
-
-            // Extract arguments for the tool
-            Map<String, Object> toolSchema = availableTools.stream()
-                    .filter(t -> selectedTool.equals(t.get("name")))
-                    .findFirst()
-                    .orElse(null);
-            Map<String, Object> toolArgs = mcpToolService.extractToolArguments(message, selectedTool,
-                    toolSchema != null ? (Map<String, Object>) toolSchema.get("inputSchema") : null);
+            // Select the best tool and extract arguments
+            String selectedTool;
+            Map<String, Object> toolArgs;
+            
+            // Use IntelligentToolSelector if available, otherwise fallback to old method
+            if (intelligentToolSelector != null) {
+                selectedTool = intelligentToolSelector.selectBestTool(message, availableTools, server);
+                log.debug("Intelligent selector chose tool for '{}': {}", message, selectedTool);
+                Map<String, Object> toolSchema = availableTools.stream()
+                        .filter(t -> selectedTool.equals(t.get("name")))
+                        .findFirst()
+                        .orElse(null);
+                toolArgs = intelligentToolSelector.extractToolArguments(message, selectedTool, toolSchema, server);
+            } else {
+                selectedTool = mcpToolService.selectBestTool(message, server);
+                log.debug("Selected tool for '{}': {}", message, selectedTool);
+                Map<String, Object> toolSchema = availableTools.stream()
+                        .filter(t -> selectedTool.equals(t.get("name")))
+                        .findFirst()
+                        .orElse(null);
+                toolArgs = mcpToolService.extractToolArguments(message, selectedTool,
+                        toolSchema != null ? (Map<String, Object>) toolSchema.get("inputSchema") : null);
+            }
             log.debug("Extracted arguments: {}", toolArgs);
 
             // Use tools/call with the selected tool

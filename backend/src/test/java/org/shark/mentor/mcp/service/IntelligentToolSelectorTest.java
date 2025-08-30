@@ -111,6 +111,57 @@ class IntelligentToolSelectorTest {
     }
 
     @Test
+    void shouldMapSpanishSchemaQueryToListSchemas() {
+        // Given - Create a tools list that includes list_schemas
+        List<Map<String, Object>> toolsWithSchemas = List.of(
+            Map.of("name", "list_schemas", "description", "Lista todos los esquemas disponibles en la base de datos",
+                   "inputSchema", Map.of("properties", Map.of())),
+            Map.of("name", "query_data", "description", "Ejecuta una consulta en lenguaje natural o SQL sobre el data lake",
+                   "inputSchema", Map.of("properties", Map.of("query", Map.of("type", "string")))),
+            Map.of("name", "list_tables", "description", "Lista todas las tablas disponibles en el data lake",
+                   "inputSchema", Map.of("properties", Map.of()))
+        );
+        
+        String userMessage = "cuales son los esquemas";
+        when(llmService.generate(anyString(), contains("intelligent tool selector"))).thenReturn("list_schemas");
+
+        // When
+        String selectedTool = intelligentToolSelector.selectBestTool(userMessage, toolsWithSchemas, testServer);
+
+        // Then
+        assertEquals("list_schemas", selectedTool);
+    }
+
+    @Test
+    void shouldMapVariousSpanishSchemaQueriesToListSchemas() {
+        // Given - Create a tools list that includes list_schemas
+        List<Map<String, Object>> toolsWithSchemas = List.of(
+            Map.of("name", "list_schemas", "description", "Lista todos los esquemas disponibles en la base de datos",
+                   "inputSchema", Map.of("properties", Map.of())),
+            Map.of("name", "query_data", "description", "Ejecuta una consulta en lenguaje natural o SQL sobre el data lake",
+                   "inputSchema", Map.of("properties", Map.of("query", Map.of("type", "string"))))
+        );
+        
+        // Test multiple variations of Spanish schema queries
+        String[] spanishQueries = {
+            "cuales son los esquemas",
+            "listame todos los esquemas", 
+            "mostrar esquemas disponibles",
+            "ver los esquemas de la base de datos"
+        };
+        
+        when(llmService.generate(anyString(), contains("intelligent tool selector"))).thenReturn("list_schemas");
+
+        for (String query : spanishQueries) {
+            // When
+            String selectedTool = intelligentToolSelector.selectBestTool(query, toolsWithSchemas, testServer);
+
+            // Then
+            assertEquals("list_schemas", selectedTool, "Failed for query: " + query);
+        }
+    }
+
+    @Test
     void shouldExtractQueryArgumentForNaturalLanguageQuery() {
         // Given
         String userMessage = "Dame las ventas del último mes";

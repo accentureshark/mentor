@@ -70,66 +70,89 @@ public class IntelligentToolSelector {
 
     private String buildToolSelectionPrompt(String toolsJson, String serverName) {
         return String.format("""
-            You are an intelligent tool selector for an MCP (Model Context Protocol) client.
-            Your task is to analyze a user's natural language request and select the most appropriate tool.
+            You are an intelligent tool selector for an MCP (Model Context Protocol) client with advanced natural language understanding.
+            Your task is to analyze user requests in Spanish or English and intelligently select the most appropriate tool.
             
             SERVER: %s
             AVAILABLE TOOLS:
             %s
             
-            INSTRUCTIONS:
-            1. Analyze the user's intent and requirements
-            2. Match the request to the most suitable tool based on:
-               - Tool name relevance
-               - Tool description matching the user's intent
-               - Input parameters that can be satisfied by the request
-            3. Consider synonyms and variations in language
-            4. Think about the user's goal, not just keywords
+            CORE CAPABILITIES:
+            1. **Spanish-English Translation Understanding**: Automatically understand Spanish terms and map them to English tool names
+            2. **Semantic Intent Analysis**: Focus on what the user wants to accomplish, not just keyword matching
+            3. **Context-Aware Selection**: Consider the relationship between user intent and tool functionality
+            4. **Flexible Language Processing**: Handle variations, synonyms, and natural language patterns
+            
+            SPANISH TRANSLATION PATTERNS (understand these conceptually, don't just match keywords):
+            - "esquemas" / "cuales son los esquemas" / "listar esquemas" → concepts related to "schemas" or "list_schemas"
+            - "tablas" / "que tablas hay" / "mostrar tablas" → concepts related to "tables" or "list_tables"
+            - "estructura" / "describir" / "formato" → concepts related to "describe" or schema information
+            - "datos" / "consulta" / "buscar" / "filtrar" → concepts related to "query" or "search"
+            - "ejemplos" / "muestra" / "sample" → concepts related to "sample" or example data
+            - "repositorios" / "repos" → concepts related to "repositories"
+            - "archivos" / "contenido" → concepts related to "files" or "contents"
+            
+            INTELLIGENT SELECTION PROCESS:
+            1. Understand the user's intent regardless of exact wording
+            2. Map Spanish concepts to English tool functionality
+            3. Consider tool descriptions and purposes, not just names
+            4. Prioritize tools that best accomplish the user's goal
+            5. Use semantic understanding over literal matching
             
             RESPONSE FORMAT:
             Respond with ONLY the exact tool name (nothing else). If no tool is suitable, respond with "NONE".
             
-            EXAMPLES:
-            - "Dame las ventas del último mes" -> query_data
-            - "¿Qué tablas hay disponibles?" -> list_tables  
-            - "Muéstrame la estructura de la tabla clientes" -> describe_table
-            - "Buscar tablas relacionadas con ventas" -> search_tables
-            - "Dame algunos datos de ejemplo de productos" -> sample_data
-            - "¿Cuántas filas tiene la tabla usuarios?" -> count_rows
-            - "listame todos los esquemas" -> list_schemas
-            - "Mostrar repositorios públicos" -> list_repositories
-            - "Buscar repositorio con react" -> search_repositories
+            REASONING APPROACH:
+            Instead of relying on examples, analyze:
+            - What is the user trying to accomplish?
+            - Which tool's description best matches that intent?
+            - How do Spanish terms map to English concepts?
+            - What would be the most logical tool for this task?
             """, serverName, toolsJson);
     }
 
     private String buildArgumentExtractionPrompt(String toolName, String schemaJson, String serverName) {
         return String.format("""
-            You are an intelligent parameter extractor for MCP tool calls.
-            Your task is to extract the appropriate arguments from a natural language request for a specific tool.
+            You are an intelligent parameter extractor for MCP tool calls with advanced Spanish-English translation capabilities.
+            Your task is to extract appropriate arguments from natural language requests for a specific tool.
             
             SERVER: %s
             TOOL: %s
             TOOL SCHEMA: %s
             
-            INSTRUCTIONS:
-            1. Analyze the user's request to identify relevant parameters
-            2. Extract values that match the tool's input schema
-            3. Use intelligent mapping for natural language terms
-            4. Handle synonyms and variations (e.g., "público" = "public", "último mes" = time ranges)
-            5. Only include parameters that are clearly mentioned or strongly implied
-            6. Convert natural language to appropriate data types (strings, numbers, booleans)
+            CORE CAPABILITIES:
+            1. **Spanish-English Translation**: Automatically understand and translate Spanish terms to appropriate English parameter values
+            2. **Semantic Understanding**: Extract meaning and intent, not just literal words
+            3. **Context-Aware Extraction**: Consider what the user is trying to accomplish
+            4. **Flexible Parameter Mapping**: Map natural language to structured data types
+            
+            SPANISH TRANSLATION UNDERSTANDING:
+            - "público" / "publico" → "public"
+            - "privado" → "private"
+            - "último mes" / "mes pasado" → time-related values or "last_month"
+            - "esquemas" → "schemas" (for search terms or table names)
+            - "tablas" → "tables" (for search terms or references)
+            - "usuarios" / "clientes" / "productos" / "ventas" → table/entity names
+            - Numbers in Spanish: "cinco" → 5, "diez" → 10, etc.
+            
+            INTELLIGENT EXTRACTION PROCESS:
+            1. Understand the user's intent and what data they're requesting
+            2. Map Spanish terms to their English equivalents when appropriate
+            3. Extract parameters that match the tool's schema requirements
+            4. Use semantic understanding to infer implicit parameters
+            5. Convert natural language descriptions to appropriate data types
+            6. Only include parameters that are clearly mentioned or strongly implied
             
             RESPONSE FORMAT:
             Respond with ONLY a valid JSON object containing the extracted parameters.
             Use empty object {} if no parameters can be extracted.
             
-            EXAMPLES:
-            - "Dame las ventas del último mes" -> {"query": "ventas", "timeframe": "last_month"}
-            - "SELECT * FROM productos LIMIT 10" -> {"query": "SELECT * FROM productos LIMIT 10"}
-            - "Describe la tabla clientes" -> {"table": "clientes"}
-            - "Dame 5 filas de usuarios" -> {"table": "usuarios", "limit": 5}
-            - "repositorios públicos" -> {"type": "public"}
-            - "buscar react en github" -> {"q": "react"}
+            REASONING APPROACH:
+            Instead of pattern matching, analyze:
+            - What specific data is the user requesting?
+            - How do the Spanish terms map to the tool's expected parameters?
+            - What would be the most logical parameter values for this request?
+            - Are there implicit parameters based on the user's intent?
             """, serverName, toolName, schemaJson);
     }
 
