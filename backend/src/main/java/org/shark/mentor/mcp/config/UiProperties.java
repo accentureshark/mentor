@@ -31,6 +31,10 @@ public class UiProperties {
         private String mcpServerContext = "MCP SERVER CONTEXT";
         private String formattingInstructions = "SPECIFIC FORMATTING INSTRUCTIONS";
         
+        // Schema formatting messages
+        private String schemasListHeader = "Schemas List";
+        private String schemaItemTemplate = "name: %s %s structure: %s Size: %s";
+        
         // Search keywords (comma-separated)
         private String searchKeywords = "search,find,buscar,encuentra";
     }

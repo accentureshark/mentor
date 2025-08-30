@@ -131,6 +131,14 @@ public class LlmServiceEnhanced implements LlmService {
             prompt.append("- List columns with their types and descriptions clearly\n");
             prompt.append("- Include row counts and size information if available\n");
             prompt.append("- Format as structured lists for easy reading\n");
+            
+            // Add specific formatting for schema lists
+            if (context.toLowerCase().contains("schema") && (question.toLowerCase().contains("list") || question.toLowerCase().contains("esquemas"))) {
+                prompt.append("- For schema lists specifically, use this exact format:\n");
+                prompt.append("  * Header: ").append(i18nService.getMessage("schemas.list.header")).append("\n");
+                prompt.append("  * List all schemas with: 'The following schemas are available:' followed by simple list\n");
+                prompt.append("  * Then for each schema, use format: ").append(i18nService.getMessage("prefix.file")).append(" name: [schema_name] ").append(i18nService.getMessage("prefix.structure")).append(" structure: [structure_info] Size: [size_info]\n");
+            }
         } else if (context.toLowerCase().contains("query") || context.toLowerCase().contains("select") || context.toLowerCase().contains("data")) {
             prompt.append("This appears to be query result information:\n");
             prompt.append("- Use ").append(i18nService.getMessage("prefix.data")).append(" for query results and ").append(i18nService.getMessage("prefix.chart")).append(" for data summaries\n");
@@ -174,6 +182,7 @@ public class LlmServiceEnhanced implements LlmService {
             "- Use clear titles and subtitles with appropriate emojis\n" +
             "- For data queries: " + i18nService.getMessage("prefix.data") + " title, " + i18nService.getMessage("prefix.chart") + " results, summary\n" +
             "- For tables/schemas: " + i18nService.getMessage("prefix.file") + " name, " + i18nService.getMessage("prefix.structure") + " structure, size\n" +
+            "- For schema lists specifically: Use exact header '" + i18nService.getMessage("schemas.list.header") + "'\n" +
             "- For files: file name, size, date\n" +
             "- For code/GitHub: " + i18nService.getMessage("prefix.code") + " repository, " + i18nService.getMessage("prefix.tool") + " function, status\n" +
             "- For APIs/tools: tool name, purpose, results\n" +

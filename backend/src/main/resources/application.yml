@@ -145,6 +145,8 @@ ui:
     dynamic-toolsets-enabled: ${UI_MSG_TOOLS_ENABLED:Dynamic toolsets enabled for %s}
     mcp-server-context: ${UI_MSG_MCP_CONTEXT:MCP SERVER CONTEXT}
     formatting-instructions: ${UI_MSG_FORMATTING:SPECIFIC FORMATTING INSTRUCTIONS}
+    schemas-list-header: ${UI_SCHEMAS_LIST_HEADER:Schemas List}
+    schema-item-template: ${UI_SCHEMA_ITEM_TEMPLATE:name: %s %s structure: %s Size: %s}
     search-keywords: ${UI_SEARCH_KEYWORDS:search,find,buscar,encuentra}
 
   jackson:

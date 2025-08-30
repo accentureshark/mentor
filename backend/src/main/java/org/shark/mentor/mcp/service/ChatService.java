@@ -265,9 +265,62 @@ public class ChatService {
         String safeServerName = (serverName != null && !serverName.isBlank()) ? serverName : "Unknown MCP Server";
         StringBuilder formattedResponse = new StringBuilder();
         formattedResponse.append(i18nService.getMessage("response.from", safeServerName));
-        formattedResponse.append(formatGenericStructuredResponse(jsonNode));
+        
+        // Check if this is a schema-related response
+        if (isSchemaResponse(jsonNode, userMessage)) {
+            formattedResponse.append(formatSchemaResponse(jsonNode));
+        } else {
+            formattedResponse.append(formatGenericStructuredResponse(jsonNode));
+        }
+        
         formattedResponse.append(i18nService.getMessage("info.provided.by", safeServerName));
         return formattedResponse.toString();
+    }
+
+    private boolean isSchemaResponse(JsonNode jsonNode, String userMessage) {
+        String jsonString = jsonNode.toString().toLowerCase();
+        String userQuery = userMessage != null ? userMessage.toLowerCase() : "";
+        
+        return (userQuery.contains("list") && userQuery.contains("schema")) ||
+               userQuery.contains("listame") && userQuery.contains("esquemas") ||
+               jsonString.contains("schema") && jsonString.contains("information_schema");
+    }
+
+    private String formatSchemaResponse(JsonNode jsonNode) {
+        StringBuilder response = new StringBuilder();
+        response.append(i18nService.getMessage("schemas.list.header")).append("\n");
+        response.append("The following schemas are available:\n\n");
+        
+        try {
+            // Try to extract schema information from the JSON response
+            if (jsonNode.has("schemas") && jsonNode.get("schemas").isArray()) {
+                for (JsonNode schema : jsonNode.get("schemas")) {
+                    String schemaName = schema.has("name") ? schema.get("name").asText() : "unknown";
+                    response.append(formatSingleSchema(schemaName));
+                }
+            } else if (jsonNode.isArray()) {
+                for (JsonNode schema : jsonNode) {
+                    String schemaName = schema.isTextual() ? schema.asText() : 
+                                       schema.has("name") ? schema.get("name").asText() : "unknown";
+                    response.append(formatSingleSchema(schemaName));
+                }
+            } else {
+                // Fallback to generic structured response
+                String prettyJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(jsonNode);
+                response.append("```json\n").append(prettyJson).append("\n```\n");
+            }
+        } catch (Exception e) {
+            response.append(jsonNode.toString());
+        }
+        
+        return response.toString();
+    }
+
+    private String formatSingleSchema(String schemaName) {
+        return String.format("%s name: %s %s structure: The structure of this schema is not defined in the provided context. Size: Not specified in the provided context.\n\n",
+                i18nService.getMessage("prefix.file"),
+                schemaName,
+                i18nService.getMessage("prefix.structure"));
     }
 
 
@@ -316,24 +369,55 @@ public class ChatService {
         StringBuilder response = new StringBuilder();
         response.append(i18nService.getMessage("response.from", serverName));
         
-        // Try to detect if it's a list or structured text
-        if (mcpContext.contains("* ") || mcpContext.contains("- ")) {
-            // Already contains list formatting, improve it
-            String[] lines = mcpContext.split("\n");
-            for (String line : lines) {
-                line = line.trim();
-                if (line.startsWith("* ") || line.startsWith("- ")) {
-                    response.append("🔹 ").append(line.substring(2)).append("\n");
-                } else if (!line.isEmpty()) {
-                    response.append(line).append("\n");
-                }
-            }
+        // Check if this is a schema list response based on content
+        if (isSchemaListResponse(mcpContext)) {
+            response.append(formatRawSchemaResponse(mcpContext));
         } else {
-            // Plain text, add some structure
-            response.append("📝 ").append(mcpContext);
+            // Try to detect if it's a list or structured text
+            if (mcpContext.contains("* ") || mcpContext.contains("- ")) {
+                // Already contains list formatting, improve it
+                String[] lines = mcpContext.split("\n");
+                for (String line : lines) {
+                    line = line.trim();
+                    if (line.startsWith("* ") || line.startsWith("- ")) {
+                        response.append("🔹 ").append(line.substring(2)).append("\n");
+                    } else if (!line.isEmpty()) {
+                        response.append(line).append("\n");
+                    }
+                }
+            } else {
+                // Plain text, add some structure
+                response.append("📝 ").append(mcpContext);
+            }
         }
         
         response.append(i18nService.getMessage("info.provided.by", serverName));
+        return response.toString();
+    }
+
+    private boolean isSchemaListResponse(String mcpContext) {
+        String lowerContext = mcpContext.toLowerCase();
+        return lowerContext.contains("information_schema") && 
+               (lowerContext.contains("sf1") || lowerContext.contains("sf100") || lowerContext.contains("tiny"));
+    }
+
+    private String formatRawSchemaResponse(String mcpContext) {
+        StringBuilder response = new StringBuilder();
+        response.append(i18nService.getMessage("schemas.list.header")).append("\n");
+        response.append("The following schemas are available:\n\n");
+        
+        // Extract schema names from the raw context
+        String[] lines = mcpContext.split("\n");
+        for (String line : lines) {
+            line = line.trim();
+            if (!line.isEmpty() && !line.toLowerCase().contains("available") && !line.toLowerCase().contains("schemas")) {
+                // This looks like a schema name
+                if (line.matches("^[a-zA-Z0-9_]+$")) {
+                    response.append(formatSingleSchema(line));
+                }
+            }
+        }
+        
         return response.toString();
     }
 
