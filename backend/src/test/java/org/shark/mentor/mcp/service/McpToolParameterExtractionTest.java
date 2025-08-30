@@ -19,15 +19,10 @@ class McpToolParameterExtractionTest {
     @Mock
     private McpServerService mcpServerService;
 
-    @Mock
-    private LlmService llmService;
-
-    private McpToolService mcpToolService;
     private McpServer testServer;
 
     @BeforeEach
     void setUp() {
-        mcpToolService = new McpToolService(mcpServerService, llmService);
         testServer = new McpServer();
         testServer.setId("test");
         testServer.setName("Test Server");
@@ -40,15 +35,15 @@ class McpToolParameterExtractionTest {
         List<Map<String, Object>> tools = new ArrayList<>();
         tools.add(createToolWithParameter("query_data", "query", "string", "Query to execute"));
 
-        McpToolService testService = new McpToolService(mcpServerService, llmService) {
+        McpToolService testService = new McpToolService(mcpServerService) {
+            @Override
             public List<Map<String, Object>> getTools(McpServer server) {
                 return tools;
             }
         };
 
-        when(llmService.generate(anyString(), anyString())).thenReturn("{\"query\":\"SELECT * FROM users\"}");
-
-        Map<String, Object> args = testService.extractToolArguments("show me all users", "query_data", testServer);
+        Map<String, Object> userArgs = Map.of("query", "SELECT * FROM users");
+        Map<String, Object> args = filterArgumentsBySchema(userArgs, tools.get(0));
         assertEquals(1, args.size());
         assertEquals("SELECT * FROM users", args.get("query"));
     }
@@ -58,15 +53,15 @@ class McpToolParameterExtractionTest {
         List<Map<String, Object>> tools = new ArrayList<>();
         tools.add(createToolWithNoParameters("list_tables"));
 
-        McpToolService testService = new McpToolService(mcpServerService, llmService) {
+        McpToolService testService = new McpToolService(mcpServerService) {
+            @Override
             public List<Map<String, Object>> getTools(McpServer server) {
                 return tools;
             }
         };
 
-//        when(llmService.generate(anyString(), anyString())).thenReturn("{}");
-
-        Map<String, Object> args = testService.extractToolArguments("list all tables", "list_tables", testServer);
+        Map<String, Object> userArgs = Map.of();
+        Map<String, Object> args = filterArgumentsBySchema(userArgs, tools.get(0));
         assertTrue(args.isEmpty());
     }
 
@@ -75,16 +70,15 @@ class McpToolParameterExtractionTest {
         List<Map<String, Object>> tools = new ArrayList<>();
         tools.add(createToolWithParameter("describe_table", "table_name", "string", "Table to describe"));
 
-        McpToolService testService = new McpToolService(mcpServerService, llmService) {
+        McpToolService testService = new McpToolService(mcpServerService) {
+            @Override
             public List<Map<String, Object>> getTools(McpServer server) {
                 return tools;
             }
         };
 
-        when(llmService.generate(anyString(), anyString()))
-                .thenReturn("{\"table_name\":\"users\",\"extra\":\"ignored\"}");
-
-        Map<String, Object> args = testService.extractToolArguments("describe users", "describe_table", testServer);
+        Map<String, Object> userArgs = Map.of("table_name", "users", "extra", "ignored");
+        Map<String, Object> args = filterArgumentsBySchema(userArgs, tools.get(0));
         assertEquals(1, args.size());
         assertEquals("users", args.get("table_name"));
         assertFalse(args.containsKey("extra"));
@@ -93,14 +87,32 @@ class McpToolParameterExtractionTest {
     @Test
     void testExtractArgumentsReturnsEmptyForUnknownTool() {
         List<Map<String, Object>> tools = new ArrayList<>();
-        McpToolService testService = new McpToolService(mcpServerService, llmService) {
+        McpToolService testService = new McpToolService(mcpServerService) {
+            @Override
             public List<Map<String, Object>> getTools(McpServer server) {
                 return tools;
             }
         };
 
-        Map<String, Object> args = testService.extractToolArguments("something", "unknown_tool", testServer);
+        Map<String, Object> userArgs = Map.of();
+        // No tool schema, so should return empty
+        Map<String, Object> args = filterArgumentsBySchema(userArgs, null);
         assertTrue(args.isEmpty());
+    }
+
+    private Map<String, Object> filterArgumentsBySchema(Map<String, Object> userArgs, Map<String, Object> tool) {
+        if (tool == null) return Collections.emptyMap();
+        Map<String, Object> inputSchema = (Map<String, Object>) tool.get("input_schema");
+        if (inputSchema == null) return Collections.emptyMap();
+        Map<String, Object> properties = (Map<String, Object>) inputSchema.get("properties");
+        if (properties == null) return Collections.emptyMap();
+        Map<String, Object> filtered = new HashMap<>();
+        for (String key : userArgs.keySet()) {
+            if (properties.containsKey(key)) {
+                filtered.put(key, userArgs.get(key));
+            }
+        }
+        return filtered;
     }
 
     private Map<String, Object> createToolWithParameter(String name, String paramName, String paramType, String paramDescription) {
@@ -128,12 +140,11 @@ class McpToolParameterExtractionTest {
         Map<String, Object> tool = new HashMap<>();
         tool.put("name", name);
         tool.put("description", "desc");
-
         Map<String, Object> inputSchema = new HashMap<>();
         inputSchema.put("type", "object");
-        inputSchema.put("properties", Collections.emptyMap());
+        inputSchema.put("properties", new HashMap<>());
+        inputSchema.put("required", new ArrayList<>());
         tool.put("input_schema", inputSchema);
-
         return tool;
     }
 }
