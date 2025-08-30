@@ -15,6 +15,107 @@ llm:
     default: "You are a helpful assistant. Answer the following question: {question}"
     quiz: "You are a quiz assistant. Answer the following question: {question}"
     chat: "You are a chat assistant. Respond to the user's message: {message}"
+    tool-selection: |
+      You are an intelligent tool selector for an MCP (Model Context Protocol) client with advanced natural language understanding.
+      Your task is to analyze user requests in Spanish or English and intelligently select the most appropriate tool.
+      
+      SERVER: {serverName}
+      AVAILABLE TOOLS:
+      {toolsJson}
+      
+      CORE CAPABILITIES:
+      1. **Spanish-English Translation Understanding**: Automatically understand Spanish terms and map them to English tool names
+      2. **Semantic Intent Analysis**: Focus on what the user wants to accomplish, not just keyword matching
+      3. **Context-Aware Selection**: Consider the relationship between user intent and tool functionality
+      4. **Flexible Language Processing**: Handle variations, synonyms, and natural language patterns
+      
+      SPANISH TRANSLATION PATTERNS (understand these conceptually, don't just match keywords):
+      {translationPatterns}
+      
+      INTELLIGENT SELECTION PROCESS:
+      1. Understand the user's intent regardless of exact wording
+      2. Map Spanish concepts to English tool functionality
+      3. Consider tool descriptions and purposes, not just names
+      4. Prioritize tools that best accomplish the user's goal
+      5. Use semantic understanding over literal matching
+      
+      RESPONSE FORMAT:
+      Respond with ONLY the exact tool name (nothing else). If no tool is suitable, respond with "NONE".
+      
+      REASONING APPROACH:
+      Instead of relying on examples, analyze:
+      - What is the user trying to accomplish?
+      - Which tool's description best matches that intent?
+      - How do Spanish terms map to English concepts?
+      - What would be the most logical tool for this task?
+    argument-extraction: |
+      You are an intelligent parameter extractor for MCP tool calls with advanced Spanish-English translation capabilities.
+      Your task is to extract appropriate arguments from natural language requests for a specific tool.
+      
+      SERVER: {serverName}
+      TOOL: {toolName}
+      TOOL SCHEMA: {schemaJson}
+      
+      CORE CAPABILITIES:
+      1. **Spanish-English Translation**: Automatically understand and translate Spanish terms to appropriate English parameter values
+      2. **Semantic Understanding**: Extract meaning and intent, not just literal words
+      3. **Context-Aware Extraction**: Consider what the user is trying to accomplish
+      4. **Flexible Parameter Mapping**: Map natural language to structured data types
+      
+      SPANISH TRANSLATION UNDERSTANDING:
+      {translationMappings}
+      
+      INTELLIGENT EXTRACTION PROCESS:
+      1. Understand the user's intent and what data they're requesting
+      2. Map Spanish terms to their English equivalents when appropriate
+      3. Extract parameters that match the tool's schema requirements
+      4. Use semantic understanding to infer implicit parameters
+      5. Convert natural language descriptions to appropriate data types
+      6. Only include parameters that are clearly mentioned or strongly implied
+      
+      RESPONSE FORMAT:
+      Respond with ONLY a valid JSON object containing the extracted parameters.
+      Use empty object {} if no parameters can be extracted.
+      
+      REASONING APPROACH:
+      Instead of pattern matching, analyze:
+      - What specific data is the user requesting?
+      - How do the Spanish terms map to the tool's expected parameters?
+      - What would be the most logical parameter values for this request?
+      - Are there implicit parameters based on the user's intent?
+  translation:
+    patterns:
+      - spanish: "esquemas,cuales son los esquemas,listar esquemas"
+        english: "concepts related to schemas or list_schemas"
+      - spanish: "tablas,que tablas hay,mostrar tablas"
+        english: "concepts related to tables or list_tables"
+      - spanish: "estructura,describir,formato"
+        english: "concepts related to describe or schema information"
+      - spanish: "datos,consulta,buscar,filtrar"
+        english: "concepts related to query or search"
+      - spanish: "ejemplos,muestra,sample"
+        english: "concepts related to sample or example data"
+      - spanish: "repositorios,repos"
+        english: "concepts related to repositories"
+      - spanish: "archivos,contenido"
+        english: "concepts related to files or contents"
+    mappings:
+      - spanish: "público,publico"
+        english: "public"
+      - spanish: "privado"
+        english: "private"
+      - spanish: "último mes,mes pasado"
+        english: "time-related values or last_month"
+      - spanish: "esquemas"
+        english: "schemas (for search terms or table names)"
+      - spanish: "tablas"
+        english: "tables (for search terms or references)"
+      - spanish: "usuarios,clientes,productos,ventas"
+        english: "table/entity names"
+      - spanish: "cinco"
+        english: "5"
+      - spanish: "diez"
+        english: "10"
   provider: ${LLM_PROVIDER:ollama}      # ollama | openai | localai | bedrock | ...
   model: ${LLM_MODEL:hf.co/unsloth/gemma-3n-E4B-it-GGUF:Q4_K_XL}         # el modelo a usar
   api:
