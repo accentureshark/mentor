@@ -49,6 +49,11 @@ public class I18nService {
             case "prefix.chart" -> messages.getChartPrefix();
             case "schemas.list.header" -> messages.getDataPrefix() + " **" + messages.getSchemasListHeader() + "**";
             case "schema.item.template" -> messages.getSchemasListHeader();
+            case "format.data.query" -> messages.getDataQueryFormat();
+            case "format.table.schema" -> messages.getTableSchemaFormat();
+            case "format.file" -> messages.getFileFormat();
+            case "format.code.github" -> messages.getCodeGithubFormat();
+            case "format.api.tool" -> messages.getApiToolFormat();
             default -> {
                 log.warn("Unknown message key: {}", key);
                 yield key;

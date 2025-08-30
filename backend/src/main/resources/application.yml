@@ -147,6 +147,11 @@ ui:
     formatting-instructions: ${UI_MSG_FORMATTING:SPECIFIC FORMATTING INSTRUCTIONS}
     schemas-list-header: ${UI_SCHEMAS_LIST_HEADER:Schemas List}
     schema-item-template: ${UI_SCHEMA_ITEM_TEMPLATE:name: %s %s structure: %s Size: %s}
+    data-query-format: ${UI_DATA_QUERY_FORMAT:data title, chart results, summary}
+    table-schema-format: ${UI_TABLE_SCHEMA_FORMAT:name, structure details, size information}
+    file-format: ${UI_FILE_FORMAT:file name, size, date}
+    code-github-format: ${UI_CODE_GITHUB_FORMAT:repository, function/tool, status}
+    api-tool-format: ${UI_API_TOOL_FORMAT:tool name, purpose, results}
     search-keywords: ${UI_SEARCH_KEYWORDS:search,find,buscar,encuentra}
 
   jackson:
