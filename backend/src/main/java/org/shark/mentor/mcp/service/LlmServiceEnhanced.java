@@ -9,6 +9,7 @@ import dev.langchain4j.model.chat.ChatLanguageModel;
 import lombok.extern.slf4j.Slf4j;
 import org.shark.mentor.mcp.config.LlmProperties;
 import org.shark.mentor.mcp.config.UiProperties;
+import org.shark.mentor.mcp.model.McpServer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
@@ -29,14 +30,20 @@ public class LlmServiceEnhanced implements LlmService {
 
     private final LlmProperties props;
     private final I18nService i18nService;
+    private final DynamicToolInfoService dynamicToolInfoService;
+    private final ToolContextCache toolContextCache;
     private ChatLanguageModel chatModel;
     private final Map<String, ChatMemory> conversationMemories = new ConcurrentHashMap<>();
     
     // Primary constructor
     @Autowired
-    public LlmServiceEnhanced(LlmProperties props, I18nService i18nService) {
+    public LlmServiceEnhanced(LlmProperties props, I18nService i18nService, 
+                             DynamicToolInfoService dynamicToolInfoService,
+                             ToolContextCache toolContextCache) {
         this.props = props;
         this.i18nService = i18nService;
+        this.dynamicToolInfoService = dynamicToolInfoService;
+        this.toolContextCache = toolContextCache;
     }
 
     @jakarta.annotation.PostConstruct
@@ -62,8 +69,15 @@ public class LlmServiceEnhanced implements LlmService {
      * Generate response with conversation memory support
      */
     public String generateWithMemory(String conversationId, String question, String context) {
+        return generateWithMemory(conversationId, question, context, null);
+    }
+
+    /**
+     * Generate response with conversation memory support and MCP server context for dynamic formatting
+     */
+    public String generateWithMemory(String conversationId, String question, String context, McpServer server) {
         try {
-            List<ChatMessage> messages = buildMessages(question, context);
+            List<ChatMessage> messages = buildMessages(question, context, server);
             
             // Use langchain4j to generate response with proper context management
             String response = chatModel.generate(messages).content().text();
@@ -97,6 +111,13 @@ public class LlmServiceEnhanced implements LlmService {
      * Build proper message list for langchain4j processing
      */
     private List<ChatMessage> buildMessages(String question, String context) {
+        return buildMessages(question, context, null);
+    }
+
+    /**
+     * Build proper message list for langchain4j processing with optional server context
+     */
+    private List<ChatMessage> buildMessages(String question, String context, McpServer server) {
         List<ChatMessage> messages = new ArrayList<>();
         
         // System message defining MCP-compliant behavior
@@ -105,7 +126,7 @@ public class LlmServiceEnhanced implements LlmService {
         
         // Add context as system information if available
         if (context != null && !context.isBlank()) {
-            String contextPrompt = buildContextPrompt(context, question);
+            String contextPrompt = buildContextPrompt(context, question, server);
             messages.add(SystemMessage.from(contextPrompt));
         }
         
@@ -119,47 +140,30 @@ public class LlmServiceEnhanced implements LlmService {
      * Build context prompt that instructs the LLM how to format the response based on MCP tool results
      */
     private String buildContextPrompt(String context, String question) {
-        StringBuilder prompt = new StringBuilder();
-        prompt.append(i18nService.getMessage("context.mcp")).append(":\n");
-        prompt.append(context);
-        prompt.append("\n\n").append(i18nService.getMessage("instructions.formatting")).append(":\n");
+        return buildContextPrompt(context, question, null);
+    }
 
-        // Determine the type of response based on context content
-        if (context.toLowerCase().contains("table") || context.toLowerCase().contains("schema") || context.toLowerCase().contains("column")) {
-            prompt.append("This appears to be database/table related information:\n");
-            prompt.append("- Use ").append(i18nService.getMessage("prefix.file")).append(" for table names and ").append(i18nService.getMessage("prefix.structure")).append(" for structure information\n");
-            prompt.append("- List columns with their types and descriptions clearly\n");
-            prompt.append("- Include row counts and size information if available\n");
-            prompt.append("- Format as structured lists for easy reading\n");
-            
-            // Add specific formatting for schema lists
-            if (context.toLowerCase().contains("schema") && (question.toLowerCase().contains("list") || question.toLowerCase().contains("esquemas"))) {
-                prompt.append("- For schema lists specifically, use this exact format:\n");
-                prompt.append("  * Header: ").append(i18nService.getMessage("schemas.list.header")).append("\n");
-                prompt.append("  * List all schemas with: 'The following schemas are available:' followed by simple list\n");
-                prompt.append("  * Then for each schema, use format: ").append(i18nService.getMessage("prefix.file")).append(" name: [schema_name] ").append(i18nService.getMessage("prefix.structure")).append(" structure: [structure_info] Size: [size_info]\n");
-            }
-        } else if (context.toLowerCase().contains("query") || context.toLowerCase().contains("select") || context.toLowerCase().contains("data")) {
-            prompt.append("This appears to be query result information:\n");
-            prompt.append("- Use ").append(i18nService.getMessage("prefix.data")).append(" for query results and ").append(i18nService.getMessage("prefix.chart")).append(" for data summaries\n");
-            prompt.append("- Highlight key findings and patterns in the data\n");
-            prompt.append("- Include record counts and aggregation results\n");
-            prompt.append("- Present data in tabular format when appropriate\n");
-        } else if (context.toLowerCase().contains("repository") || context.toLowerCase().contains("github") || context.toLowerCase().contains("code")) {
-            prompt.append("This appears to be code repository information:\n");
-            prompt.append("- Use ").append(i18nService.getMessage("prefix.code")).append(" for repositories and ").append(i18nService.getMessage("prefix.tool")).append(" for functions/tools\n");
-            prompt.append("- Include repository details, file structures, or code snippets\n");
-            prompt.append("- Show status information and any execution results\n");
+    /**
+     * Build context prompt that dynamically determines formatting based on MCP server tools
+     */
+    private String buildContextPrompt(String context, String question, McpServer server) {
+        if (server != null) {
+            // Use comprehensive context with caching to reduce LLM calls
+            return toolContextCache.buildComprehensivePrompt(server, context, question);
         } else {
+            // Fallback to basic context when no server is available
+            StringBuilder prompt = new StringBuilder();
+            prompt.append(i18nService.getMessage("context.mcp")).append(":\n");
+            prompt.append(context);
+            prompt.append("\n\n").append(i18nService.getMessage("instructions.formatting")).append(":\n");
             prompt.append("Organize the information clearly with:\n");
             prompt.append("- Descriptive titles with appropriate emojis\n");
             prompt.append("- Information structured in lists\n");
             prompt.append("- Use of markdown for formatting\n");
             prompt.append("- Clear separation between elements\n");
+            prompt.append("\nAlways end with: ").append(i18nService.getMessage("info.provided.by", "[server name]"));
+            return prompt.toString();
         }
-
-        prompt.append("\nAlways end with: ").append(i18nService.getMessage("info.provided.by", "[server name]"));
-        return prompt.toString();
     }
 
     /**
@@ -169,7 +173,7 @@ public class LlmServiceEnhanced implements LlmService {
         String currentLocale = i18nService.getCurrentLocale().toString();
         
         return "You are a helpful assistant that works with MCP (Model Context Protocol) servers.\n" +
-            "You specialize in understanding and executing tool requests across different domains like data lakes, GitHub, files, APIs, and more.\n\n" +
+            "You specialize in understanding and executing tool requests across different domains.\n\n" +
             "Important guidelines:\n" +
             "1. Respond ONLY using information provided in the context of MCP servers\n" +
             "2. Do not infer or add information that is not explicitly indicated in the context\n" +
@@ -180,15 +184,11 @@ public class LlmServiceEnhanced implements LlmService {
             "7. Focus on helping users understand the capabilities and results of MCP tools\n\n" +
             "RESPONSE FORMAT:\n" +
             "- Use clear titles and subtitles with appropriate emojis\n" +
-            "- For data queries: " + i18nService.getMessage("prefix.data") + " " + i18nService.getMessage("format.data.query") + "\n" +
-            "- For tables/schemas: " + i18nService.getMessage("prefix.file") + " " + i18nService.getMessage("format.table.schema") + "\n" +
-            "- For schema lists specifically: Use exact header '" + i18nService.getMessage("schemas.list.header") + "'\n" +
-            "- For files: " + i18nService.getMessage("format.file") + "\n" +
-            "- For code/GitHub: " + i18nService.getMessage("prefix.code") + " " + i18nService.getMessage("format.code.github") + "\n" +
-            "- For APIs/tools: " + i18nService.getMessage("format.api.tool") + "\n" +
+            "- Follow any specific formatting instructions provided in the context\n" +
             "- Organize information in numbered or bulleted lists\n" +
             "- Use proper spacing between sections\n" +
-            "- If there are multiple results, list them clearly\n\n" +
+            "- If there are multiple results, list them clearly\n" +
+            "- Use markdown formatting for better readability\n\n" +
             "Always maintain accuracy and transparency about the limitations of the available context.\n" +
             "All responses must be well formatted and in the user's preferred language.\n" +
             "Adapt the format based on the type of MCP server and tool being used.";

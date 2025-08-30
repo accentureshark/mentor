@@ -160,7 +160,7 @@ public class ChatService {
                 context = "No se encontraron resultados relevantes para la consulta.";
             }
 
-            String assistantContent = enhancedLlmService.generateWithMemory(conversationId, query, context);
+            String assistantContent = enhancedLlmService.generateWithMemory(conversationId, query, context, server);
 
             if (assistantContent != null && assistantContent.startsWith("Error generating response:")) {
                 log.warn("LLM service returned error for conversation {}, using MCP context: {}", conversationId, assistantContent);

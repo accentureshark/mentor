@@ -24,7 +24,10 @@ class LlmServiceEnhancedTest {
         UiProperties uiProps = new UiProperties();
         uiProps.setLocale("es");
         I18nService i18nService = new I18nService(uiProps);
-        LlmServiceEnhanced service = new LlmServiceEnhanced(props, i18nService);
+        McpToolService mcpToolService = mock(McpToolService.class);
+        DynamicToolInfoService dynamicToolInfoService = new DynamicToolInfoService(mcpToolService);
+        ToolContextCache toolContextCache = new ToolContextCache(dynamicToolInfoService);
+        LlmServiceEnhanced service = new LlmServiceEnhanced(props, i18nService, dynamicToolInfoService, toolContextCache);
 
         ChatLanguageModel model = mock(ChatLanguageModel.class);
         var captor = forClass(List.class);
