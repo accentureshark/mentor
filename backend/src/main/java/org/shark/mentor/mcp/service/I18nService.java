@@ -21,7 +21,8 @@ public class I18nService {
     public String getMessage(String key, Object... args) {
         String template = getMessageTemplate(key);
         if (args.length > 0) {
-            return MessageFormat.format(template, args);
+            // Use simple string format for compatibility
+            return String.format(template, args);
         }
         return template;
     }
@@ -46,6 +47,8 @@ public class I18nService {
             case "prefix.file" -> messages.getFilePrefix();
             case "prefix.structure" -> messages.getStructurePrefix();
             case "prefix.chart" -> messages.getChartPrefix();
+            case "schemas.list.header" -> messages.getDataPrefix() + " **" + messages.getSchemasListHeader() + "**";
+            case "schema.item.template" -> messages.getSchemasListHeader();
             default -> {
                 log.warn("Unknown message key: {}", key);
                 yield key;
