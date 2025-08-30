@@ -32,4 +32,9 @@ public class LlmFactory {
                 throw new IllegalArgumentException("Unsupported LLM provider: " + provider);
         }
     }
+    
+    // Backward compatibility method for tests
+    public static ChatLanguageModel createChatModel(String provider, String model, String baseUrl, String apiKey) {
+        return createChatModel(provider, model, baseUrl, apiKey, 0.7, 2);
+    }
 }

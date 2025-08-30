@@ -31,6 +31,24 @@ public class McpToolService {
         this.mcpServerService = mcpServerService;
         this.uiProperties = uiProperties;
     }
+    
+    // Backward compatibility constructor for tests
+    public McpToolService(McpServerService mcpServerService) {
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
+        this.mcpServerService = mcpServerService;
+        this.uiProperties = createDefaultUiProperties();
+    }
+    
+    private UiProperties createDefaultUiProperties() {
+        UiProperties props = new UiProperties();
+        props.setLocale("en");
+        UiProperties.Messages messages = new UiProperties.Messages();
+        messages.setSearchKeywords("search,find,buscar,encuentra");
+        props.setMessages(messages);
+        return props;
+    }
 
     public List<Map<String, Object>> getTools(McpServer server) {
         log.info("Fetching tools for server: {}", server.getName());

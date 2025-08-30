@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.shark.mentor.mcp.model.ChatMessage;
 import org.shark.mentor.mcp.model.McpRequest;
 import org.shark.mentor.mcp.model.McpServer;
+import org.shark.mentor.mcp.config.UiProperties;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
@@ -52,6 +53,22 @@ public class ChatService {
         } else {
             log.info("Using original implementation");
         }
+    }
+    
+    // Backward compatibility constructor for tests
+    public ChatService(McpServerService mcpServerService,
+                      LlmService llmService,
+                      Optional<McpToolOrchestrator> mcpToolOrchestrator,
+                      Optional<LlmServiceEnhanced> enhancedLlmService,
+                      McpToolService mcpToolService) {
+        this(mcpServerService, llmService, mcpToolOrchestrator, enhancedLlmService, 
+             mcpToolService, createDefaultI18nService());
+    }
+    
+    private static I18nService createDefaultI18nService() {
+        UiProperties props = new UiProperties();
+        props.setLocale("en");
+        return new I18nService(props);
     }
 
     public List<ChatMessage> getConversation(String conversationId) {

@@ -6,9 +6,9 @@ import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.memory.ChatMemory;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatLanguageModel;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.shark.mentor.mcp.config.LlmProperties;
+import org.shark.mentor.mcp.config.UiProperties;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
@@ -23,7 +23,6 @@ import java.util.Map;
  */
 @Slf4j
 @Service("llmServiceEnhanced")
-@RequiredArgsConstructor
 @Primary
 public class LlmServiceEnhanced implements LlmService {
 
@@ -31,6 +30,20 @@ public class LlmServiceEnhanced implements LlmService {
     private final I18nService i18nService;
     private ChatLanguageModel chatModel;
     private final Map<String, ChatMemory> conversationMemories = new ConcurrentHashMap<>();
+    
+    // Primary constructor
+    public LlmServiceEnhanced(LlmProperties props, I18nService i18nService) {
+        this.props = props;
+        this.i18nService = i18nService;
+    }
+    
+    // Backward compatibility constructor for tests
+    public LlmServiceEnhanced(LlmProperties props) {
+        this.props = props;
+        UiProperties uiProps = new UiProperties();
+        uiProps.setLocale("en");
+        this.i18nService = new I18nService(uiProps);
+    }
 
     @jakarta.annotation.PostConstruct
     public void initModel() {
