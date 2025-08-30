@@ -39,7 +39,15 @@ public class IntelligentToolSelector {
             String response = llmService.generate(userMessage, systemPrompt);
             
             log.debug("LLM tool selection response: {}", response);
-            return extractToolNameFromResponse(response, availableTools);
+            String selectedTool = extractToolNameFromResponse(response, availableTools);
+            
+            // If LLM selection failed or returned null, use fallback
+            if (selectedTool == null) {
+                log.info("LLM selection returned null, using fallback for message: '{}'", userMessage);
+                return fallbackToolSelection(userMessage, availableTools);
+            }
+            
+            return selectedTool;
             
         } catch (Exception e) {
             log.error("Error in intelligent tool selection: {}", e.getMessage(), e);
@@ -185,7 +193,14 @@ public class IntelligentToolSelector {
         log.info("Using fallback tool selection for message: '{}'", userMessage);
         String lower = userMessage.toLowerCase();
         
-        // Try exact name match first
+        // Enhanced Spanish translation matching
+        String selectedTool = trySpanishTranslationMatching(lower, availableTools);
+        if (selectedTool != null) {
+            log.info("Fallback selected tool by Spanish translation: {}", selectedTool);
+            return selectedTool;
+        }
+        
+        // Try exact name match
         for (Map<String, Object> tool : availableTools) {
             Object nameObj = tool.get("name");
             if (nameObj instanceof String) {
@@ -215,6 +230,49 @@ public class IntelligentToolSelector {
         String fallback = (String) availableTools.get(0).get("name");
         log.info("Fallback selected first available tool: {}", fallback);
         return fallback;
+    }
+    
+    private String trySpanishTranslationMatching(String lowerMessage, List<Map<String, Object>> availableTools) {
+        // Check for schema-related Spanish terms
+        if (containsAnySpanishTerm(lowerMessage, "esquemas", "cuales son los esquemas", "listar esquemas", "listame todos los esquemas", "todos los esquemas")) {
+            return findToolByName(availableTools, "list_schemas");
+        }
+        
+        // Check for table-related Spanish terms  
+        if (containsAnySpanishTerm(lowerMessage, "tablas", "que tablas hay", "mostrar tablas", "listame las tablas", "todas las tablas")) {
+            return findToolByName(availableTools, "list_tables");
+        }
+        
+        // Check for describe/structure Spanish terms
+        if (containsAnySpanishTerm(lowerMessage, "estructura", "describir", "formato", "describe")) {
+            return findToolByName(availableTools, "describe_table");
+        }
+        
+        // Check for query-related Spanish terms
+        if (containsAnySpanishTerm(lowerMessage, "consulta", "buscar", "filtrar", "query")) {
+            return findToolByName(availableTools, "query_presto");
+        }
+        
+        return null;
+    }
+    
+    private boolean containsAnySpanishTerm(String message, String... terms) {
+        for (String term : terms) {
+            if (message.contains(term.toLowerCase())) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    private String findToolByName(List<Map<String, Object>> availableTools, String toolName) {
+        for (Map<String, Object> tool : availableTools) {
+            Object nameObj = tool.get("name");
+            if (nameObj instanceof String && toolName.equals((String) nameObj)) {
+                return (String) nameObj;
+            }
+        }
+        return null;
     }
 
     private String buildFallbackToolSelectionPrompt(String toolsJson, String serverName) {
