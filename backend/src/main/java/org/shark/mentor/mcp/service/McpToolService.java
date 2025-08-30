@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.shark.mentor.mcp.model.McpServer;
+import org.shark.mentor.mcp.config.UiProperties;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
@@ -21,12 +22,32 @@ public class McpToolService {
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final McpServerService mcpServerService;
+    private final UiProperties uiProperties;
 
+    public McpToolService(McpServerService mcpServerService, UiProperties uiProperties) {
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
+        this.mcpServerService = mcpServerService;
+        this.uiProperties = uiProperties;
+    }
+    
+    // Backward compatibility constructor for tests
     public McpToolService(McpServerService mcpServerService) {
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
         this.mcpServerService = mcpServerService;
+        this.uiProperties = createDefaultUiProperties();
+    }
+    
+    private UiProperties createDefaultUiProperties() {
+        UiProperties props = new UiProperties();
+        props.setLocale("en");
+        UiProperties.Messages messages = new UiProperties.Messages();
+        messages.setSearchKeywords("search,find,buscar,encuentra");
+        props.setMessages(messages);
+        return props;
     }
 
     public List<Map<String, Object>> getTools(McpServer server) {
@@ -44,7 +65,7 @@ public class McpToolService {
                 tool.put("inputSchema", tool.get("input_schema"));
             }
         }
-        log.info("Tools encontradas para el servidor {}: {}", server.getName(), tools);
+        log.info("Tools found for server {}: {}", server.getName(), tools);
         return tools;
     }
 
@@ -227,9 +248,9 @@ public class McpToolService {
     }
 
     private String extractSearchTerm(String message) {
-        String[] keywords = {"buscar", "search", "encuentra", "find"};
+        String[] keywords = uiProperties.getMessages().getSearchKeywords().split(",");
         for (String keyword : keywords) {
-            int index = message.toLowerCase().indexOf(keyword);
+            int index = message.toLowerCase().indexOf(keyword.trim());
             if (index != -1) {
                 String remaining = message.substring(index + keyword.length()).trim();
                 return remaining.split("\\s+")[0];

@@ -21,7 +21,9 @@ public class LlmServiceLangchain4j implements LlmService {
                 props.getProvider(),
                 props.getModel(),
                 props.getApi().getBaseUrl(),
-                props.getApi().getKey()
+                props.getApi().getKey(),
+                props.getModelConfig().getTemperature(),
+                props.getModelConfig().getTimeoutMinutes()
         );
     }
 

@@ -33,6 +33,6 @@ public class McpProperties {
         private String url;
         private boolean implemented;
         private boolean prewarm;
-
+        private java.util.Map<String, String> environment;
     }
 }

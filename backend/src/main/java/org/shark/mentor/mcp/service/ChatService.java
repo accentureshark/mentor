@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.shark.mentor.mcp.model.ChatMessage;
 import org.shark.mentor.mcp.model.McpRequest;
 import org.shark.mentor.mcp.model.McpServer;
+import org.shark.mentor.mcp.config.UiProperties;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
@@ -23,6 +24,7 @@ public class ChatService {
     private final McpServerService mcpServerService;
     private final LlmService llmService;
     private final McpToolService mcpToolService;
+    private final I18nService i18nService;
     private final ObjectMapper objectMapper = new ObjectMapper();
     
     // Optional dependencies for simplified implementation
@@ -34,10 +36,12 @@ public class ChatService {
                       LlmService llmService,
                       Optional<McpToolOrchestrator> mcpToolOrchestrator,
                       Optional<LlmServiceEnhanced> enhancedLlmService,
-                      McpToolService mcpToolService) {
+                      McpToolService mcpToolService,
+                      I18nService i18nService) {
         this.mcpServerService = mcpServerService;
         this.llmService = llmService;
         this.mcpToolService = mcpToolService;
+        this.i18nService = i18nService;
 
         // Use simplified implementation if available
         this.mcpToolOrchestrator = mcpToolOrchestrator.orElse(null);
@@ -49,6 +53,22 @@ public class ChatService {
         } else {
             log.info("Using original implementation");
         }
+    }
+    
+    // Backward compatibility constructor for tests
+    public ChatService(McpServerService mcpServerService,
+                      LlmService llmService,
+                      Optional<McpToolOrchestrator> mcpToolOrchestrator,
+                      Optional<LlmServiceEnhanced> enhancedLlmService,
+                      McpToolService mcpToolService) {
+        this(mcpServerService, llmService, mcpToolOrchestrator, enhancedLlmService, 
+             mcpToolService, createDefaultI18nService());
+    }
+    
+    private static I18nService createDefaultI18nService() {
+        UiProperties props = new UiProperties();
+        props.setLocale("en");
+        return new I18nService(props);
     }
 
     public List<ChatMessage> getConversation(String conversationId) {
@@ -111,7 +131,7 @@ public class ChatService {
             ChatMessage acknowledgeMessage = ChatMessage.builder()
                     .id(UUID.randomUUID().toString())
                     .role("ASSISTANT")
-                    .content("✅ Dynamic toolsets enabled for " + server.getName())
+                    .content(i18nService.getMessage("tools.enabled", server.getName()))
                     .timestamp(System.currentTimeMillis())
                     .serverId(request.getServerId())
                     .build();
@@ -221,8 +241,7 @@ public class ChatService {
 
     private String formatMcpResponse(String mcpContext, String userMessage, String serverName) {
         if (mcpContext == null || mcpContext.trim().isEmpty()) {
-            return String.format("✅ Successfully contacted %s, but no specific data was returned for: \"%s\"",
-                    serverName, userMessage);
+            return i18nService.getMessage("success.contact", serverName, userMessage);
         }
         
         try {
@@ -242,9 +261,9 @@ public class ChatService {
     private String formatStructuredMcpResponse(JsonNode jsonNode, String serverName, String userMessage) {
         String safeServerName = (serverName != null && !serverName.isBlank()) ? serverName : "Unknown MCP Server";
         StringBuilder formattedResponse = new StringBuilder();
-        formattedResponse.append(String.format("✅ **Response from %s**\n\n", safeServerName));
+        formattedResponse.append(i18nService.getMessage("response.from", safeServerName));
         formattedResponse.append(formatGenericStructuredResponse(jsonNode));
-        formattedResponse.append(String.format("\n\n💡 \\*Information provided by %s\\*", safeServerName));
+        formattedResponse.append(i18nService.getMessage("info.provided.by", safeServerName));
         return formattedResponse.toString();
     }
 
@@ -292,7 +311,7 @@ public class ChatService {
 
     private String formatRawMcpResponse(String mcpContext, String serverName) {
         StringBuilder response = new StringBuilder();
-        response.append(String.format("✅ **Response from %s**\n\n", serverName));
+        response.append(i18nService.getMessage("response.from", serverName));
         
         // Try to detect if it's a list or structured text
         if (mcpContext.contains("* ") || mcpContext.contains("- ")) {
@@ -311,7 +330,7 @@ public class ChatService {
             response.append("📝 ").append(mcpContext);
         }
         
-        response.append(String.format("\n\n💡 *Information provided by %s*", serverName));
+        response.append(i18nService.getMessage("info.provided.by", serverName));
         return response.toString();
     }
 
@@ -346,7 +365,7 @@ public class ChatService {
             ChatMessage acknowledgeMessage = ChatMessage.builder()
                     .id(UUID.randomUUID().toString())
                     .role("ASSISTANT")
-                    .content("✅ Dynamic toolsets enabled for " + server.getName())
+                    .content(i18nService.getMessage("tools.enabled", server.getName()))
                     .timestamp(System.currentTimeMillis())
                     .serverId(request.getServerId())
                     .build();
