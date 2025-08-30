@@ -119,6 +119,20 @@ class McpServer:
                     },
                     "required": ["table_name"]
                 }
+            },
+            {
+                "name": "list_schemas",
+                "description": "List available schemas in the data lake",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "catalog": {
+                            "type": "string",
+                            "description": "Catalog to list schemas from",
+                            "default": "hive"
+                        }
+                    }
+                }
             }
         ]
         
@@ -261,6 +275,8 @@ class McpServer:
                 result = self._list_tables(arguments) 
             elif tool_name == "describe_table":
                 result = self._describe_table(arguments)
+            elif tool_name == "list_schemas":
+                result = self._list_schemas(arguments)
             else:
                 return self.create_error_response(request_id, -32603, f"Tool '{tool_name}' execution not implemented")
             
@@ -447,6 +463,22 @@ class McpServer:
             "schema": schema,
             "columns": columns,
             "table_type": "table",
+            "note": "This is a simulated result. In a real implementation, this would query PrestoDB system tables."
+        }
+
+    def _list_schemas(self, arguments: Dict) -> Dict:
+        """Simulate listing schemas from data lake"""
+        catalog = arguments.get("catalog", "hive")
+        
+        return {
+            "catalog": catalog,
+            "schemas": [
+                {"name": "default", "table_count": 15, "description": "Default schema"},
+                {"name": "analytics", "table_count": 8, "description": "Analytics and reporting tables"},
+                {"name": "staging", "table_count": 23, "description": "Staging area for data processing"},
+                {"name": "production", "table_count": 45, "description": "Production data tables"},
+                {"name": "warehouse", "table_count": 12, "description": "Data warehouse tables"}
+            ],
             "note": "This is a simulated result. In a real implementation, this would query PrestoDB system tables."
         }
 
