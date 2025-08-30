@@ -16,12 +16,14 @@ class LlmPlannerTest {
     private McpServerService mcpServerService;
     @Mock
     private McpToolService mcpToolService;
+    @Mock
+    private IntelligentToolSelector intelligentToolSelector;
 
     private McpToolOrchestrator orchestrator;
 
     @BeforeEach
     void setUp() {
-        orchestrator = new McpToolOrchestrator(mcpServerService, mcpToolService);
+        orchestrator = new McpToolOrchestrator(mcpServerService, mcpToolService, intelligentToolSelector);
     }
 
     @Test

@@ -27,6 +27,7 @@ public class McpToolOrchestrator {
 
     private final McpServerService mcpServerService;
     private final McpToolService mcpToolService;
+    private final IntelligentToolSelector intelligentToolSelector;
 
     /**
      * Executes an MCP tool based on the user's message
@@ -54,17 +55,21 @@ public class McpToolOrchestrator {
                 return "There are no tools available on the selected MCP server.";
             }
 
-            // Select the best tool (you can use the logic from McpToolService or here)
-            String toolName = mcpToolService.selectBestTool(userMessage, server);
+            // Select the best tool using intelligent selector
+            String toolName = intelligentToolSelector.selectBestTool(userMessage, availableTools, server);
             if (toolName == null) {
-                return "Unable to determine the appropriate tool for your request.";
+                log.warn("No suitable tool found for message: '{}'", userMessage);
+                return "Unable to determine the appropriate tool for your request. Please be more specific about what you want to do.";
             }
+            
             Map<String, Object> toolSchema = availableTools.stream()
                     .filter(t -> toolName.equals(t.get("name")))
                     .findFirst()
                     .orElse(availableTools.get(0));
-            Map<String, Object> arguments = mcpToolService.extractToolArguments(userMessage, toolName,
-                    (Map<String, Object>) toolSchema.get("inputSchema"));
+            
+            // Extract arguments using intelligent selector  
+            Map<String, Object> arguments = intelligentToolSelector.extractToolArguments(
+                    userMessage, toolName, toolSchema, server);
 
             log.info("Selected tool '{}' for message: {}", toolName, userMessage);
 

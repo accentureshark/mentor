@@ -106,7 +106,7 @@ public class LlmServiceEnhanced implements LlmService {
     }
 
     /**
-     * Build context prompt that instructs the LLM how to format the response
+     * Build context prompt that instructs the LLM how to format the response based on MCP tool results
      */
     private String buildContextPrompt(String context, String question) {
         StringBuilder prompt = new StringBuilder();
@@ -114,7 +114,31 @@ public class LlmServiceEnhanced implements LlmService {
         prompt.append(context);
         prompt.append("\n\nSPECIFIC FORMATTING INSTRUCTIONS:\n");
 
-
+        // Determine the type of response based on context content
+        if (context.toLowerCase().contains("table") || context.toLowerCase().contains("schema") || context.toLowerCase().contains("column")) {
+            prompt.append("""
+                This appears to be database/table related information:
+                - Use 📁 for table names and 🏗️ for structure information
+                - List columns with their types and descriptions clearly
+                - Include row counts and size information if available
+                - Format as structured lists for easy reading
+                """);
+        } else if (context.toLowerCase().contains("query") || context.toLowerCase().contains("select") || context.toLowerCase().contains("data")) {
+            prompt.append("""
+                This appears to be query result information:
+                - Use 📊 for query results and 📈 for data summaries
+                - Highlight key findings and patterns in the data
+                - Include record counts and aggregation results
+                - Present data in tabular format when appropriate
+                """);
+        } else if (context.toLowerCase().contains("repository") || context.toLowerCase().contains("github") || context.toLowerCase().contains("code")) {
+            prompt.append("""
+                This appears to be code repository information:
+                - Use 💻 for repositories and 🔧 for functions/tools
+                - Include repository details, file structures, or code snippets
+                - Show status information and any execution results
+                """);
+        } else {
             prompt.append("""
                 Organize the information clearly with:
                 - Descriptive titles with appropriate emojis
@@ -122,18 +146,19 @@ public class LlmServiceEnhanced implements LlmService {
                 - Use of markdown for formatting
                 - Clear separation between elements
                 """);
+        }
 
-
-        prompt.append("\nAlways end with: 💡 *Information provided by [server name]*");
+        prompt.append("\nAlways end with: 💡 *Información proporcionada por el servidor MCP*");
         return prompt.toString();
     }
 
     /**
-     * Build MCP-compliant system prompt that ensures Spanish responses
+     * Build MCP-compliant system prompt that ensures Spanish responses and focuses on tool understanding
      */
     private String buildSystemPrompt() {
         return """
             You are a helpful assistant that works with MCP (Model Context Protocol) servers.
+            You specialize in understanding and executing tool requests across different domains like data lakes, GitHub, files, APIs, and more.
 
             Important guidelines:
             1. Respond ONLY using information provided in the context of MCP servers
@@ -142,24 +167,41 @@ public class LlmServiceEnhanced implements LlmService {
             4. Be precise and factual in your responses
             5. When relevant, mention which MCP server provided the information
             6. ALWAYS respond in Spanish, regardless of the language of the question
+            7. Focus on helping users understand the capabilities and results of MCP tools
 
             RESPONSE FORMAT:
             - Use clear titles and subtitles with appropriate emojis
-            - For movies: 🎬 title, 📅 year, ⭐ rating, 📝 description
-            - For files: 📁 name, 📏 size, 📅 date
+            - For data queries: 📊 title, 📈 results, 📋 summary
+            - For tables/schemas: 📁 name, 🏗️ structure, 📏 size
+            - For files: 📄 name, 📏 size, 📅 date
             - For code/GitHub: 💻 repository, 🔧 function, 📊 status
+            - For APIs/tools: ⚙️ tool name, 🎯 purpose, 📝 results
             - Organize information in numbered or bulleted lists
             - Use proper spacing between sections
             - If there are multiple results, list them clearly
 
-            Example for movies:
-            🎬 **[Movie Title]** (📅 Year)
-            ⭐ Rating: X.X/10
-            📝 **Synopsis:** [Description]
-            🎭 **Genre:** [Genre]
+            Examples for different MCP server types:
+            
+            📊 **Data Lake Query Results**
+            🎯 **Consulta:** [user query]
+            📈 **Resultados encontrados:** X registros
+            📋 **Resumen:**
+            - [Key findings]
+            
+            📁 **Tabla: [table_name]**
+            🏗️ **Estructura:**
+            - Campo 1: [type] - [description]
+            - Campo 2: [type] - [description]
+            📏 **Registros:** X filas
+            
+            💻 **Repositorio: [repo_name]**
+            🔧 **Función ejecutada:** [tool_name]
+            📊 **Estado:** [status]
+            📝 **Resultado:** [description]
 
             Always maintain accuracy and transparency about the limitations of the available context.
             All responses must be in Spanish and well formatted.
+            Adapt the format based on the type of MCP server and tool being used.
             """;
     }
 }
