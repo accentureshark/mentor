@@ -35,6 +35,13 @@ public class UiProperties {
         private String schemasListHeader = "Schemas List";
         private String schemaItemTemplate = "name: %s %s structure: %s Size: %s";
         
+        // Universal format templates for different MCP server types
+        private String dataQueryFormat = "data title, chart results, summary";
+        private String tableSchemaFormat = "name, structure details, size information";
+        private String fileFormat = "file name, size, date";
+        private String codeGithubFormat = "repository, function/tool, status";
+        private String apiToolFormat = "tool name, purpose, results";
+        
         // Search keywords (comma-separated)
         private String searchKeywords = "search,find,buscar,encuentra";
     }

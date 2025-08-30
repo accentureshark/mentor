@@ -158,7 +158,7 @@ public class LlmServiceEnhanced implements LlmService {
             prompt.append("- Clear separation between elements\n");
         }
 
-        prompt.append("\nAlways end with: ").append(i18nService.getMessage("info.provided.by", "el servidor MCP"));
+        prompt.append("\nAlways end with: ").append(i18nService.getMessage("info.provided.by", "[server name]"));
         return prompt.toString();
     }
 
@@ -180,12 +180,12 @@ public class LlmServiceEnhanced implements LlmService {
             "7. Focus on helping users understand the capabilities and results of MCP tools\n\n" +
             "RESPONSE FORMAT:\n" +
             "- Use clear titles and subtitles with appropriate emojis\n" +
-            "- For data queries: " + i18nService.getMessage("prefix.data") + " title, " + i18nService.getMessage("prefix.chart") + " results, summary\n" +
-            "- For tables/schemas: " + i18nService.getMessage("prefix.file") + " name, " + i18nService.getMessage("prefix.structure") + " structure, size\n" +
+            "- For data queries: " + i18nService.getMessage("prefix.data") + " " + i18nService.getMessage("format.data.query") + "\n" +
+            "- For tables/schemas: " + i18nService.getMessage("prefix.file") + " " + i18nService.getMessage("format.table.schema") + "\n" +
             "- For schema lists specifically: Use exact header '" + i18nService.getMessage("schemas.list.header") + "'\n" +
-            "- For files: file name, size, date\n" +
-            "- For code/GitHub: " + i18nService.getMessage("prefix.code") + " repository, " + i18nService.getMessage("prefix.tool") + " function, status\n" +
-            "- For APIs/tools: tool name, purpose, results\n" +
+            "- For files: " + i18nService.getMessage("format.file") + "\n" +
+            "- For code/GitHub: " + i18nService.getMessage("prefix.code") + " " + i18nService.getMessage("format.code.github") + "\n" +
+            "- For APIs/tools: " + i18nService.getMessage("format.api.tool") + "\n" +
             "- Organize information in numbered or bulleted lists\n" +
             "- Use proper spacing between sections\n" +
             "- If there are multiple results, list them clearly\n\n" +

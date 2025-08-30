@@ -19,7 +19,7 @@ import static org.mockito.Mockito.*;
 class LlmServiceEnhancedTest {
 
     @Test
-    void generateWithMemoryReturnsSpanishResponse() throws Exception {
+    void generateWithMemoryReturnsLocalizedResponse() throws Exception {
         LlmProperties props = new LlmProperties();
         UiProperties uiProps = new UiProperties();
         uiProps.setLocale("es");
@@ -31,7 +31,7 @@ class LlmServiceEnhancedTest {
         when(model.generate(captor.capture())).thenAnswer(invocation -> {
             List<ChatMessage> messages = invocation.getArgument(0);
             String systemText = ((SystemMessage) messages.get(0)).text();
-            String content = systemText.contains("All responses must be in Spanish")
+            String content = systemText.contains("current locale: es")
                     ? "Respuesta en español" : "English response";
             return Response.from(AiMessage.from(content));
         });
@@ -45,7 +45,8 @@ class LlmServiceEnhancedTest {
         assertEquals("Respuesta en español", result);
         List<ChatMessage> messages = captor.getValue();
         String systemText = ((SystemMessage) messages.get(0)).text();
-        assertTrue(systemText.contains("ALWAYS respond in Spanish"));
-        assertTrue(systemText.contains("All responses must be in Spanish"));
+        assertTrue(systemText.contains("current locale: es"));
+        assertTrue(systemText.contains("user's preferred language"));
+        assertFalse(systemText.contains("ALWAYS respond in Spanish"));
     }
 }
