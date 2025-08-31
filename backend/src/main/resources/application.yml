@@ -137,6 +137,10 @@ llm:
     max-conversations-in-memory: ${LLM_MAX_CONVERSATIONS:100}
     fast-timeout-seconds: ${LLM_FAST_TIMEOUT_SECONDS:30}  # Faster timeout for better user experience
     enable-async-processing: ${LLM_ENABLE_ASYNC:true}
+    # Streaming response settings
+    enable-streaming: ${LLM_ENABLE_STREAMING:true}  # Enable streaming responses for better UX
+    streaming-delay-ms: ${LLM_STREAMING_DELAY_MS:50}  # Delay between tokens in simulated streaming
+    streaming-word-chunk-size: ${LLM_STREAMING_CHUNK_SIZE:1}  # Number of words per chunk
   # Response formatting optimization settings
   formatting:
     enable-template-formatting: ${LLM_ENABLE_TEMPLATE_FORMATTING:true}  # Use templates for common patterns

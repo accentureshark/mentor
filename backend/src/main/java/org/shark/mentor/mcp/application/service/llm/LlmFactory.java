@@ -1,14 +1,16 @@
 package org.shark.mentor.mcp.application.service.llm;
 
 import dev.langchain4j.model.ollama.OllamaChatModel;
+import dev.langchain4j.model.ollama.OllamaStreamingChatModel;
 import dev.langchain4j.model.chat.ChatLanguageModel;
+import dev.langchain4j.model.chat.StreamingChatLanguageModel;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Factory for creating ChatLanguageModel instances with langchain4j best practices
+ * Factory for creating ChatLanguageModel and StreamingChatLanguageModel instances with langchain4j best practices
  * Includes connection pooling and optimization for performance
  */
 @Slf4j
@@ -16,6 +18,7 @@ public class LlmFactory {
     
     // Cache for reusing model instances to avoid repeated initialization
     private static final ConcurrentHashMap<String, ChatLanguageModel> modelCache = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, StreamingChatLanguageModel> streamingModelCache = new ConcurrentHashMap<>();
     
     public static ChatLanguageModel createChatModel(String provider, String model, String baseUrl, String apiKey, double temperature, int timeoutMinutes) {
         // Create a cache key based on all parameters
@@ -61,6 +64,59 @@ public class LlmFactory {
         return newModel;
     }
     
+    /**
+     * Create a streaming chat model for real-time response generation
+     */
+    public static StreamingChatLanguageModel createStreamingChatModel(String provider, String model, String baseUrl, String apiKey, double temperature, int timeoutMinutes) {
+        // Create a cache key based on all parameters
+        String cacheKey = String.format("streaming:%s:%s:%s:%s:%.2f:%d", provider, model, baseUrl, apiKey, temperature, timeoutMinutes);
+        
+        // Return cached instance if available
+        StreamingChatLanguageModel cachedModel = streamingModelCache.get(cacheKey);
+        if (cachedModel != null) {
+            log.debug("Reusing cached streaming LLM model for key: {}", cacheKey);
+            return cachedModel;
+        }
+        
+        log.info("Creating new streaming LLM model: provider={}, model={}, baseUrl={}, temperature={}, timeout={}min", 
+                provider, model, baseUrl, temperature, timeoutMinutes);
+        
+        StreamingChatLanguageModel newModel;
+        
+        switch (provider.toLowerCase()) {
+            case "ollama":
+                newModel = OllamaStreamingChatModel.builder()
+                        .baseUrl(baseUrl != null ? baseUrl : "http://localhost:11434")
+                        .modelName(model)
+                        .temperature(temperature)
+                        .timeout(Duration.ofMinutes(timeoutMinutes))
+                        // Optimize for speed based on model type
+                        .numPredict(getOptimalResponseLength(model))
+                        .build();
+                break;
+            
+            // Future providers can be added here:
+            // case "openai":
+            // case "azure-openai":
+            // case "anthropic":
+            
+            default:
+                throw new IllegalArgumentException("Unsupported streaming LLM provider: " + provider);
+        }
+        
+        // Cache the model for reuse
+        streamingModelCache.put(cacheKey, newModel);
+        log.info("Cached new streaming LLM model with key: {}", cacheKey);
+        
+        return newModel;
+    }
+    
+    // Backward compatibility method for tests
+    public static StreamingChatLanguageModel createStreamingChatModel(String provider, String model, String baseUrl, String apiKey) {
+        return createStreamingChatModel(provider, model, baseUrl, apiKey, 0.7, 2);
+    }
+    
+    
     // Backward compatibility method for tests
     public static ChatLanguageModel createChatModel(String provider, String model, String baseUrl, String apiKey) {
         return createChatModel(provider, model, baseUrl, apiKey, 0.7, 2);
@@ -71,7 +127,8 @@ public class LlmFactory {
      */
     public static void clearCache() {
         modelCache.clear();
-        log.info("Cleared LLM model cache");
+        streamingModelCache.clear();
+        log.info("Cleared LLM model caches");
     }
     
     /**
@@ -79,6 +136,13 @@ public class LlmFactory {
      */
     public static int getCacheSize() {
         return modelCache.size();
+    }
+    
+    /**
+     * Get streaming cache statistics for monitoring
+     */
+    public static int getStreamingCacheSize() {
+        return streamingModelCache.size();
     }
     
     /**

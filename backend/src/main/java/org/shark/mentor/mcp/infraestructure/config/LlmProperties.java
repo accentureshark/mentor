@@ -41,5 +41,9 @@ public class LlmProperties {
         private int fastTimeoutSeconds = 30;
         // Enable async processing for non-blocking operations
         private boolean enableAsyncProcessing = true;
+        // Streaming response settings
+        private boolean enableStreaming = true;
+        private int streamingDelayMs = 50;
+        private int streamingWordChunkSize = 1;
     }
 }

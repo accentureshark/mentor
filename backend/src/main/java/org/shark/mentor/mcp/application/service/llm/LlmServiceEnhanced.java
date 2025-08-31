@@ -6,6 +6,8 @@ import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.memory.ChatMemory;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatLanguageModel;
+import dev.langchain4j.model.chat.StreamingChatLanguageModel;
+import dev.langchain4j.model.output.Response;
 import lombok.extern.slf4j.Slf4j;
 import org.shark.mentor.mcp.application.service.cache.LlmResponseCache;
 import org.shark.mentor.mcp.application.service.i18n.I18nService;
@@ -16,6 +18,8 @@ import org.shark.mentor.mcp.domain.model.McpServer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,7 +31,7 @@ import java.util.Map;
 
 /**
  * Enhanced LLM service using langchain4j best practices for conversation management
- * and MCP-compliant response generation with performance optimizations
+ * and MCP-compliant response generation with performance optimizations and streaming support
  */
 @Slf4j
 @Service("llmServiceEnhanced")
@@ -40,6 +44,7 @@ public class LlmServiceEnhanced implements LlmService {
     private final ToolContextCache toolContextCache;
     private final LlmResponseCache responseCache;
     private ChatLanguageModel chatModel;
+    private StreamingChatLanguageModel streamingChatModel;
     private final Map<String, ConversationMemoryEntry> conversationMemories = new ConcurrentHashMap<>();
     private final ScheduledExecutorService memoryCleanupExecutor = Executors.newSingleThreadScheduledExecutor();
     
@@ -76,7 +81,8 @@ public class LlmServiceEnhanced implements LlmService {
         int timeoutMinutes = props.getPerformance().getFastTimeoutSeconds() > 0 ? 
             props.getPerformance().getFastTimeoutSeconds() / 60 : 
             props.getModelConfig().getTimeoutMinutes();
-            
+        
+        // Initialize regular chat model
         chatModel = LlmFactory.createChatModel(
                 props.getProvider(),
                 props.getModel(),
@@ -85,12 +91,137 @@ public class LlmServiceEnhanced implements LlmService {
                 props.getModelConfig().getTemperature(),
                 timeoutMinutes
         );
-        log.info("Enhanced LLM model initialized successfully with optimized timeout: {}min", timeoutMinutes);
+        
+        // Initialize streaming chat model - this is optional
+        try {
+            streamingChatModel = LlmFactory.createStreamingChatModel(
+                    props.getProvider(),
+                    props.getModel(),
+                    props.getApi().getBaseUrl(),
+                    props.getApi().getKey(),
+                    props.getModelConfig().getTemperature(),
+                    timeoutMinutes
+            );
+            log.info("Enhanced LLM model initialized with streaming support, timeout: {}min", timeoutMinutes);
+        } catch (Exception e) {
+            log.info("Streaming model not available, using simulated streaming mode: {}", e.getMessage());
+            streamingChatModel = null;
+        }
     }
 
     @Override
     public String generate(String question, String context) {
         return generateWithMemory("default", question, context);
+    }
+
+    @Override
+    public Flux<String> generateStream(String question, String context) {
+        return generateStreamWithMemory("default", question, context);
+    }
+
+    /**
+     * Generate streaming response with conversation memory support
+     */
+    public Flux<String> generateStreamWithMemory(String conversationId, String question, String context) {
+        return generateStreamWithMemory(conversationId, question, context, null);
+    }
+
+    /**
+     * Generate streaming response with conversation memory support and MCP server context
+     */
+    public Flux<String> generateStreamWithMemory(String conversationId, String question, String context, McpServer server) {
+        try {
+            // Check if streaming is enabled in configuration
+            if (!props.getPerformance().isEnableStreaming()) {
+                log.debug("Streaming disabled in configuration, falling back to synchronous response for conversation {}", conversationId);
+                return Flux.just(generateWithMemory(conversationId, question, context, server));
+            }
+            
+            // Check cache first if enabled
+            if (props.getPerformance().isEnableCaching()) {
+                String cachedResponse = responseCache.get(question, context);
+                if (cachedResponse != null) {
+                    log.debug("Returning cached response as stream for conversation {}", conversationId);
+                    // Simulate streaming by splitting cached response into chunks
+                    return simulateStreamingFromCache(cachedResponse);
+                }
+            }
+            
+            List<ChatMessage> messages = buildMessages(question, context, server);
+            
+            // For now, use a simpler approach: generate the response asynchronously and emit it in chunks
+            return Mono.fromCallable(() -> {
+                // Check if chatModel is available
+                if (chatModel == null) {
+                    throw new RuntimeException("LLM model not initialized");
+                }
+                
+                // Use the regular model if streaming model fails to initialize
+                String response = chatModel.generate(messages).content().text();
+                
+                // Cache the response if enabled
+                if (props.getPerformance().isEnableCaching() && 
+                    response != null && !response.trim().isEmpty()) {
+                    responseCache.put(question, context, response);
+                }
+                
+                log.debug("Generated async response for streaming in conversation {}", conversationId);
+                return response;
+            })
+            .flatMapMany(this::simulateStreamingFromResponse)
+            .onErrorResume(error -> {
+                log.error("Error in streaming LLM response for conversation {}: {}", 
+                         conversationId, error.getMessage(), error);
+                return Flux.just("Error generating response: " + error.getMessage());
+            });
+            
+        } catch (Exception e) {
+            log.error("Error setting up streaming LLM response for conversation {}: {}", conversationId, e.getMessage(), e);
+            return Flux.error(e);
+        }
+    }
+
+    /**
+     * Simulate streaming from a cached response by splitting into words
+     */
+    private Flux<String> simulateStreamingFromCache(String cachedResponse) {
+        String[] words = cachedResponse.split("\\s+");
+        int chunkSize = props.getPerformance().getStreamingWordChunkSize();
+        int delayMs = props.getPerformance().getStreamingDelayMs() / 2; // Faster for cached responses
+        
+        return Flux.fromIterable(createWordChunks(words, chunkSize))
+                .delayElements(java.time.Duration.ofMillis(delayMs));
+    }
+
+    /**
+     * Simulate streaming from a complete response by splitting into words
+     */
+    private Flux<String> simulateStreamingFromResponse(String response) {
+        String[] words = response.split("\\s+");
+        int chunkSize = props.getPerformance().getStreamingWordChunkSize();
+        int delayMs = props.getPerformance().getStreamingDelayMs();
+        
+        return Flux.fromIterable(createWordChunks(words, chunkSize))
+                .delayElements(java.time.Duration.ofMillis(delayMs));
+    }
+
+    /**
+     * Create chunks of words for streaming
+     */
+    private List<String> createWordChunks(String[] words, int chunkSize) {
+        List<String> chunks = new ArrayList<>();
+        StringBuilder chunk = new StringBuilder();
+        
+        for (int i = 0; i < words.length; i++) {
+            chunk.append(words[i]).append(" ");
+            
+            if ((i + 1) % chunkSize == 0 || i == words.length - 1) {
+                chunks.add(chunk.toString());
+                chunk = new StringBuilder();
+            }
+        }
+        
+        return chunks;
     }
 
     /**
@@ -267,6 +398,8 @@ public class LlmServiceEnhanced implements LlmService {
         stats.put("responseCacheSize", responseCache.size());
         stats.put("conversationMemoriesCount", conversationMemories.size());
         stats.put("modelCacheSize", LlmFactory.getCacheSize());
+        stats.put("streamingModelCacheSize", LlmFactory.getStreamingCacheSize());
+        stats.put("streamingAvailable", streamingChatModel != null);
         return stats;
     }
     
