@@ -6,6 +6,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.shark.mentor.mcp.application.service.server.McpServerService;
+import org.shark.mentor.mcp.application.service.tool.DynamicToolsetManager;
 import org.shark.mentor.mcp.application.service.tool.IntelligentToolSelector;
 import org.shark.mentor.mcp.application.service.tool.McpToolOrchestrator;
 import org.shark.mentor.mcp.application.service.tool.McpToolService;
@@ -23,12 +24,14 @@ class LlmPlannerTest {
     private McpToolService mcpToolService;
     @Mock
     private IntelligentToolSelector intelligentToolSelector;
+    @Mock
+    private DynamicToolsetManager dynamicToolsetManager;
 
     private McpToolOrchestrator orchestrator;
 
     @BeforeEach
     void setUp() {
-        orchestrator = new McpToolOrchestrator(mcpServerService, mcpToolService, intelligentToolSelector);
+        orchestrator = new McpToolOrchestrator(mcpServerService, mcpToolService, intelligentToolSelector, dynamicToolsetManager);
     }
 
     @Test
