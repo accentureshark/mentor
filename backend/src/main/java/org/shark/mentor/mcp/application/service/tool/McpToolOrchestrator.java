@@ -170,12 +170,10 @@ public class McpToolOrchestrator {
         // Analyze what the user is trying to do and what capabilities might be missing
         if (containsBranchRelatedIntent(lower) && !hasToolForCapability(availableTools, "branch")) {
             missingCapabilities.add("branches");
-            missingCapabilities.add("github");
         }
         
         if (containsRepositoryRelatedIntent(lower) && !hasToolForCapability(availableTools, "repo")) {
             missingCapabilities.add("repositories");
-            missingCapabilities.add("github");
         }
         
         if (containsFileRelatedIntent(lower) && !hasToolForCapability(availableTools, "file")) {
@@ -185,12 +183,10 @@ public class McpToolOrchestrator {
         
         if (containsIssueRelatedIntent(lower) && !hasToolForCapability(availableTools, "issue")) {
             missingCapabilities.add("issues");
-            missingCapabilities.add("github");
         }
         
         if (containsPullRequestRelatedIntent(lower) && !hasToolForCapability(availableTools, "pull")) {
             missingCapabilities.add("pull_requests");
-            missingCapabilities.add("github");
         }
         
         return missingCapabilities;
