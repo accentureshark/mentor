@@ -1,18 +1,21 @@
 package org.shark.mentor.mcp.interfaces.rest;
 
 import org.shark.mentor.mcp.application.service.chat.ChatService;
+import org.shark.mentor.mcp.application.service.llm.LlmServiceEnhanced;
 import org.shark.mentor.mcp.domain.model.ChatMessage;
 import org.shark.mentor.mcp.domain.model.McpRequest;
 
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
 /**
- * REST controller for chat functionality
+ * REST controller for chat functionality with streaming support
  */
 @RestController
 @RequestMapping("/api/mcp/chat")
@@ -22,6 +25,7 @@ import java.util.List;
 public class ChatController {
     
     private final ChatService chatService;
+    private final LlmServiceEnhanced llmServiceEnhanced;
     
     @GetMapping("/conversations")
     public ResponseEntity<List<String>> getConversations() {
@@ -42,6 +46,19 @@ public class ChatController {
         log.info("Sending message to server {}: {}", request.getServerId(), request.getMessage());
         ChatMessage response = chatService.sendMessage(request);
         return ResponseEntity.ok(response);
+    }
+    
+    @PostMapping(value = "/send/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<String> sendMessageStream(@RequestBody McpRequest request) {
+        log.info("Sending streaming message to server {}: {}", request.getServerId(), request.getMessage());
+        
+        // For now, use the LLM service directly with empty context
+        // In the future, this could be integrated with the full MCP tool chain
+        return llmServiceEnhanced.generateStreamWithMemory(
+            request.getConversationId() != null ? request.getConversationId() : "default",
+            request.getMessage(),
+            "" // Empty context for now - could be enhanced to include MCP tool results
+        ).map(token -> "data: " + token + "\n\n");
     }
     
     @DeleteMapping("/conversations/{conversationId}")
