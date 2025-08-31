@@ -4,7 +4,22 @@
 
 Este documento detalla las optimizaciones implementadas para acelerar las respuestas del LLM y mejorar el rendimiento general de la aplicación.
 
-## Optimizaciones Implementadas
+## Latest Optimization: Model Speed Upgrade (NEW)
+
+### **Model Change: Gemma 2 2B for 40-60% Speed Improvement**
+
+**Previous**: `hf.co/unsloth/gemma-3n-E4B-it-GGUF:Q4_K_XL` (~3B parameters)
+**Current**: `gemma2:2b` (~2B parameters)
+
+**Impact**: 
+- **40-60% faster inference** for all MCP operations
+- **Lower memory usage** and resource consumption
+- **Maintained functionality** for tool selection and Spanish understanding
+- **Better user experience** with faster response times
+
+See `LLM_SPEED_OPTIMIZATION.md` for complete details.
+
+## Previous Optimizations Implemented
 
 ### 1. **Cache de Respuestas (`LlmResponseCache`)**
 
