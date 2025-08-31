@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 
 /**
  * Intelligent tool selector that uses LLM to understand natural language requests
@@ -27,6 +28,7 @@ public class IntelligentToolSelector {
 
     /**
      * Uses LLM to intelligently select the best tool based on natural language request
+     * with enhanced context awareness for dynamic tool discovery
      */
     public String selectBestTool(String userMessage, List<Map<String, Object>> availableTools, McpServer server) {
         if (availableTools.isEmpty()) {
@@ -36,24 +38,24 @@ public class IntelligentToolSelector {
 
         try {
             String toolsJson = objectMapper.writeValueAsString(availableTools);
-            String systemPrompt = buildToolSelectionPrompt(toolsJson, server.getName());
+            String systemPrompt = buildEnhancedToolSelectionPrompt(toolsJson, server.getName(), userMessage);
             String response = llmService.generate(userMessage, systemPrompt);
             
-            log.debug("LLM tool selection response: {}", response);
+            log.debug("LLM tool selection response for '{}': {}", userMessage, response);
             String selectedTool = extractToolNameFromResponse(response, availableTools);
             
-            // If LLM selection failed or returned null, use fallback
+            // If LLM selection failed or returned null, use enhanced fallback
             if (selectedTool == null) {
-                log.info("LLM selection returned null, using fallback for message: '{}'", userMessage);
-                return fallbackToolSelection(userMessage, availableTools);
+                log.info("LLM selection returned null, using enhanced fallback for message: '{}'", userMessage);
+                return enhancedFallbackToolSelection(userMessage, availableTools, server);
             }
             
             return selectedTool;
             
         } catch (Exception e) {
             log.error("Error in intelligent tool selection: {}", e.getMessage(), e);
-            // Fallback to simple selection
-            return fallbackToolSelection(userMessage, availableTools);
+            // Fallback to enhanced selection
+            return enhancedFallbackToolSelection(userMessage, availableTools, server);
         }
     }
 
@@ -276,6 +278,285 @@ public class IntelligentToolSelector {
         return null;
     }
 
+    private String buildEnhancedToolSelectionPrompt(String toolsJson, String serverName, String userMessage) {
+        return String.format("""
+            You are an advanced intelligent tool selector for an MCP (Model Context Protocol) client with sophisticated natural language understanding.
+            Your primary goal is to understand user intent and select the most appropriate tool from available options.
+            
+            SERVER: %s
+            USER REQUEST: %s
+            AVAILABLE TOOLS:
+            %s
+            
+            ENHANCED CAPABILITIES:
+            1. **Intent Analysis**: Deeply understand what the user is trying to accomplish
+            2. **Semantic Matching**: Match user goals with tool capabilities, not just keywords
+            3. **Context Awareness**: Consider the server type and available tool ecosystem
+            4. **Multi-Language Support**: Handle Spanish, English, and mixed language requests seamlessly
+            5. **Dynamic Adaptation**: Work with any MCP server without hardcoded patterns
+            
+            INTELLIGENT SELECTION STRATEGY:
+            1. **Analyze User Intent**: What is the user trying to achieve?
+               - Data retrieval? (list, show, get)
+               - Information query? (search, find, filter)
+               - Structural exploration? (describe, explain, structure)
+               - Management operations? (create, update, delete)
+            
+            2. **Map Intent to Capabilities**: 
+               - For "list/show/get all" → tools with "list", "get", "all" concepts
+               - For "search/find/filter" → tools with "search", "query", "filter" concepts
+               - For "describe/explain/structure" → tools with "describe", "schema", "info" concepts
+               - For specific entities (branches, files, issues) → tools containing those entity names
+            
+            3. **Language Translation Understanding**:
+               - "branches/ramas" → branch-related tools
+               - "archivos/files" → file-related tools
+               - "repositorios/repos" → repository-related tools
+               - "issues/problemas" → issue-related tools
+               - "listar/mostrar/ver" → list/show/get operations
+               - "buscar/encontrar" → search/find operations
+            
+            4. **Contextual Reasoning**:
+               - Consider tool descriptions alongside names
+               - Prioritize tools that best match the user's specific need
+               - If multiple tools could work, choose the most specific one
+               - Prefer simpler operations when the intent is unclear
+            
+            RESPONSE PROTOCOL:
+            - Respond with ONLY the exact tool name (nothing else)
+            - If no tool is appropriate, respond with "NONE"
+            - Do not explain your reasoning in the response
+            
+            EXAMPLE REASONING (do not include in response):
+            - "show me all branches" → look for tools with "list" + "branch" concepts
+            - "dame todos los repositorios" → look for tools with "list" + "repo" concepts
+            - "buscar archivos" → look for tools with "search" + "file" concepts
+            
+            Your task: Analyze the user request and select the single best tool that accomplishes their goal.
+            """, serverName, userMessage, toolsJson);
+    }
+    
+    private String enhancedFallbackToolSelection(String userMessage, List<Map<String, Object>> availableTools, McpServer server) {
+        log.info("Using enhanced fallback tool selection for message: '{}' on server: {}", userMessage, server.getName());
+        
+        String lower = userMessage.toLowerCase().trim();
+        
+        // Enhanced intent-based matching
+        String selectedTool = analyzeIntentAndSelectTool(lower, availableTools);
+        if (selectedTool != null) {
+            log.info("Enhanced fallback selected tool by intent analysis: {}", selectedTool);
+            return selectedTool;
+        }
+        
+        // Enhanced semantic matching
+        selectedTool = performSemanticToolMatching(lower, availableTools);
+        if (selectedTool != null) {
+            log.info("Enhanced fallback selected tool by semantic matching: {}", selectedTool);
+            return selectedTool;
+        }
+        
+        // Original fallback logic as last resort
+        return fallbackToolSelection(userMessage, availableTools);
+    }
+    
+    private String analyzeIntentAndSelectTool(String lowerMessage, List<Map<String, Object>> availableTools) {
+        // Detect primary intent
+        Intent intent = detectPrimaryIntent(lowerMessage);
+        String entityType = extractEntityType(lowerMessage);
+        
+        // Find tools that match the intent and entity
+        for (Map<String, Object> tool : availableTools) {
+            String toolName = (String) tool.get("name");
+            String description = (String) tool.get("description");
+            
+            if (toolMatchesIntentAndEntity(toolName, description, intent, entityType)) {
+                return toolName;
+            }
+        }
+        
+        return null;
+    }
+    
+    private Intent detectPrimaryIntent(String message) {
+        // List/Show/Get intent
+        if (containsAny(message, "list", "listar", "show", "mostrar", "get", "todos", "all", "ver", "dame")) {
+            return Intent.LIST;
+        }
+        
+        // Search/Find intent
+        if (containsAny(message, "search", "buscar", "find", "encontrar", "filter", "filtrar")) {
+            return Intent.SEARCH;
+        }
+        
+        // Describe/Info intent
+        if (containsAny(message, "describe", "describir", "info", "structure", "estructura", "schema", "explain")) {
+            return Intent.DESCRIBE;
+        }
+        
+        // Query/Data intent
+        if (containsAny(message, "query", "consulta", "data", "datos", "sql")) {
+            return Intent.QUERY;
+        }
+        
+        return Intent.UNKNOWN;
+    }
+    
+    private String extractEntityType(String message) {
+        if (containsAny(message, "branch", "branches", "rama", "ramas")) {
+            return "branch";
+        }
+        if (containsAny(message, "repo", "repository", "repositories", "repositorio", "repositorios")) {
+            return "repository";
+        }
+        if (containsAny(message, "file", "files", "archivo", "archivos", "content", "contenido")) {
+            return "file";
+        }
+        if (containsAny(message, "issue", "issues", "problema", "problemas")) {
+            return "issue";
+        }
+        if (containsAny(message, "pull", "pr", "merge")) {
+            return "pull_request";
+        }
+        if (containsAny(message, "commit", "commits")) {
+            return "commit";
+        }
+        if (containsAny(message, "table", "tables", "tabla", "tablas")) {
+            return "table";
+        }
+        if (containsAny(message, "schema", "schemas", "esquema", "esquemas")) {
+            return "schema";
+        }
+        
+        return "unknown";
+    }
+    
+    private boolean toolMatchesIntentAndEntity(String toolName, String description, Intent intent, String entityType) {
+        if (toolName == null) return false;
+        
+        String lowerToolName = toolName.toLowerCase();
+        String lowerDescription = description != null ? description.toLowerCase() : "";
+        String combinedText = lowerToolName + " " + lowerDescription;
+        
+        // Check entity match first
+        boolean entityMatch = "unknown".equals(entityType) || 
+                             combinedText.contains(entityType) ||
+                             containsEntityVariations(combinedText, entityType);
+        
+        if (!entityMatch) {
+            return false;
+        }
+        
+        // Check intent match
+        return switch (intent) {
+            case LIST -> containsAny(combinedText, "list", "get", "all", "show");
+            case SEARCH -> containsAny(combinedText, "search", "find", "filter", "query");
+            case DESCRIBE -> containsAny(combinedText, "describe", "info", "detail", "schema", "structure");
+            case QUERY -> containsAny(combinedText, "query", "execute", "run", "sql");
+            case UNKNOWN -> true; // If intent is unknown, any entity match is good
+        };
+    }
+    
+    private boolean containsEntityVariations(String text, String entityType) {
+        return switch (entityType) {
+            case "branch" -> containsAny(text, "branches", "git");
+            case "repository" -> containsAny(text, "repo", "repos", "git");
+            case "file" -> containsAny(text, "files", "content", "blob");
+            case "issue" -> containsAny(text, "issues", "bug", "ticket");
+            case "pull_request" -> containsAny(text, "pull", "pr", "merge", "review");
+            case "commit" -> containsAny(text, "commits", "git", "history");
+            case "table" -> containsAny(text, "tables", "data");
+            case "schema" -> containsAny(text, "schemas", "structure", "metadata");
+            default -> false;
+        };
+    }
+    
+    private String performSemanticToolMatching(String lowerMessage, List<Map<String, Object>> availableTools) {
+        Map<String, Integer> toolScores = new HashMap<>();
+        
+        for (Map<String, Object> tool : availableTools) {
+            String toolName = (String) tool.get("name");
+            String description = (String) tool.get("description");
+            
+            int score = calculateSemanticScore(lowerMessage, toolName, description);
+            if (score > 0) {
+                toolScores.put(toolName, score);
+            }
+        }
+        
+        // Return the tool with the highest score
+        return toolScores.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse(null);
+    }
+    
+    private int calculateSemanticScore(String message, String toolName, String description) {
+        int score = 0;
+        
+        if (toolName == null) return 0;
+        
+        String lowerToolName = toolName.toLowerCase();
+        String lowerDescription = description != null ? description.toLowerCase() : "";
+        
+        // Exact word matches in tool name (highest priority)
+        for (String word : message.split("\\s+")) {
+            if (word.length() > 2 && lowerToolName.contains(word)) {
+                score += 5;
+            }
+        }
+        
+        // Tool name contains message words
+        for (String word : lowerToolName.split("_")) {
+            if (word.length() > 2 && message.contains(word)) {
+                score += 3;
+            }
+        }
+        
+        // Description matches
+        for (String word : message.split("\\s+")) {
+            if (word.length() > 3 && lowerDescription.contains(word)) {
+                score += 1;
+            }
+        }
+        
+        // Bonus for complete concept matches
+        if (containsCompleteConceptMatch(message, lowerToolName, lowerDescription)) {
+            score += 10;
+        }
+        
+        return score;
+    }
+    
+    private boolean containsCompleteConceptMatch(String message, String toolName, String description) {
+        String combined = toolName + " " + description;
+        
+        // Check for complete concept matches
+        if (message.contains("list") && toolName.startsWith("list")) return true;
+        if (message.contains("search") && toolName.contains("search")) return true;
+        if (message.contains("get") && toolName.startsWith("get")) return true;
+        if (message.contains("describe") && toolName.contains("describe")) return true;
+        
+        // Spanish equivalents
+        if (containsAny(message, "listar", "mostrar") && toolName.startsWith("list")) return true;
+        if (containsAny(message, "buscar", "encontrar") && toolName.contains("search")) return true;
+        if (containsAny(message, "describir", "estructura") && toolName.contains("describe")) return true;
+        
+        return false;
+    }
+    
+    private boolean containsAny(String text, String... words) {
+        for (String word : words) {
+            if (text.contains(word)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    private enum Intent {
+        LIST, SEARCH, DESCRIBE, QUERY, UNKNOWN
+    }
+    
     private String buildFallbackToolSelectionPrompt(String toolsJson, String serverName) {
         return String.format("""
             You are an intelligent tool selector for an MCP (Model Context Protocol) client with advanced natural language understanding.

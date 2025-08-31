@@ -6,6 +6,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.shark.mentor.mcp.application.service.server.McpServerService;
+import org.shark.mentor.mcp.application.service.tool.DynamicToolsetManager;
 import org.shark.mentor.mcp.application.service.tool.IntelligentToolSelector;
 import org.shark.mentor.mcp.application.service.tool.McpToolOrchestrator;
 import org.shark.mentor.mcp.application.service.tool.McpToolService;
@@ -33,6 +34,8 @@ class DataLakeToolingIntegrationTest {
     private McpToolService mcpToolService;
     @Mock
     private IntelligentToolSelector intelligentToolSelector;
+    @Mock
+    private DynamicToolsetManager dynamicToolsetManager;
 
     private McpToolOrchestrator orchestrator;
     private McpServer dataLakeServer;
@@ -40,7 +43,7 @@ class DataLakeToolingIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        orchestrator = new McpToolOrchestrator(mcpServerService, mcpToolService, intelligentToolSelector);
+        orchestrator = new McpToolOrchestrator(mcpServerService, mcpToolService, intelligentToolSelector, dynamicToolsetManager);
         dataLakeServer = new McpServer("datalake-1", "Data Lake Server", "Production Data Lake", "http://localhost:8080", "active");
         
         // Setup data lake tools as described in the problem statement
