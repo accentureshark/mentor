@@ -1,11 +1,13 @@
 package org.shark.mentor.mcp.interfaces.rest;
 
 import org.shark.mentor.mcp.application.service.chat.ChatService;
+import org.shark.mentor.mcp.application.service.llm.StreamingLlmService;
 import org.shark.mentor.mcp.domain.model.ChatMessage;
 import org.shark.mentor.mcp.domain.model.McpRequest;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -22,6 +24,7 @@ import java.util.List;
 public class ChatController {
     
     private final ChatService chatService;
+    private final StreamingLlmService streamingLlmService;
     
     @GetMapping("/conversations")
     public ResponseEntity<List<String>> getConversations() {
@@ -42,6 +45,24 @@ public class ChatController {
         log.info("Sending message to server {}: {}", request.getServerId(), request.getMessage());
         ChatMessage response = chatService.sendMessage(request);
         return ResponseEntity.ok(response);
+    }
+    
+    @PostMapping(value = "/stream", produces = "text/event-stream")
+    public SseEmitter streamMessage(@RequestBody McpRequest request) {
+        log.info("Streaming message to server {}: {}", request.getServerId(), request.getMessage());
+        
+        String conversationId = request.getConversationId();
+        if (conversationId == null) {
+            conversationId = "default";
+        }
+        
+        // For now, we'll use the streaming service directly
+        // In the future, we could integrate this with ChatService for MCP tool orchestration
+        return streamingLlmService.generateStreamingWithMemory(
+            conversationId,
+            request.getMessage(),
+            "Context from MCP server would be here" // TODO: Integrate with MCP tool orchestration
+        );
     }
     
     @DeleteMapping("/conversations/{conversationId}")

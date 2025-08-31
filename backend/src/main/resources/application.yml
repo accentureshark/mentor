@@ -137,6 +137,9 @@ llm:
     max-conversations-in-memory: ${LLM_MAX_CONVERSATIONS:100}
     fast-timeout-seconds: ${LLM_FAST_TIMEOUT_SECONDS:30}  # Faster timeout for better user experience
     enable-async-processing: ${LLM_ENABLE_ASYNC:true}
+    # Streaming configuration for dynamic responses
+    enable-streaming: ${LLM_ENABLE_STREAMING:true}  # Enable real-time streaming responses
+    streaming-timeout-millis: ${LLM_STREAMING_TIMEOUT_MILLIS:30000}  # 30 second timeout for streaming
   # Response formatting optimization settings
   formatting:
     enable-template-formatting: ${LLM_ENABLE_TEMPLATE_FORMATTING:true}  # Use templates for common patterns
