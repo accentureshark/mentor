@@ -4,8 +4,11 @@ import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.shark.mentor.mcp.config.McpProperties;
-import org.shark.mentor.mcp.model.McpServer;
+import org.shark.mentor.mcp.application.service.server.McpServerService;
+import org.shark.mentor.mcp.domain.model.McpServer;
+import org.shark.mentor.mcp.infraestructure.config.McpProperties;
+import org.shark.mentor.mcp.interfaces.websocket.McpConfigWebSocketHandler;
+
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -25,7 +28,8 @@ class McpServerServiceErrorMessageTest {
     @BeforeEach
     void setUp() {
         McpProperties properties = new McpProperties();
-        service = new McpServerService(properties);
+        McpConfigWebSocketHandler mockWebSocketHandler = new McpConfigWebSocketHandler();
+        service = new McpServerService(properties, mockWebSocketHandler);
     }
 
     @AfterEach

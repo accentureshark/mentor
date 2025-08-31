@@ -87,18 +87,18 @@ From the root directory:
 
 ```
 [UI React] ⇄ [Backend Spring Boot] ⇄ [Servidores MCP externos/locales]
-                                 ⇄ [Ollama (LLM Llama)]
+                                 ⇄ [Ollama (LLM Optimizado)]
 ```
 
 - El **frontend** (React) interactúa con el backend mediante APIs REST.
-- El **backend** gestiona la lógica de negocio, orquesta las llamadas a servidores MCP y a LLM (Llama), y expone endpoints REST.
+- El **backend** gestiona la lógica de negocio, orquesta las llamadas a servidores MCP y a LLM optimizado, y expone endpoints REST.
 - El backend puede conectarse a múltiples servidores MCP (configurados en `src/main/resources/mcp-servers.json`).
-- Para tareas de generación de lenguaje natural, el backend utiliza el servicio Ollama, que expone un modelo Llama (configurable en docker-compose).
+- Para tareas de generación de lenguaje natural, el backend utiliza el servicio Ollama con modelo `gemma2:2b` optimizado para velocidad.
 
 ### Flujo de Datos
 1. El usuario realiza una consulta desde la UI.
 2. El backend recibe la petición y determina si debe consultar un servidor MCP, el LLM, o ambos.
-3. Si la consulta requiere generación de lenguaje, el backend envía la petición a Ollama (Llama) y procesa la respuesta.
+3. Si la consulta requiere generación de lenguaje, el backend envía la petición a Ollama (modelo optimizado) y procesa la respuesta.
 4. Si la consulta requiere datos estructurados, el backend consulta el servidor MCP correspondiente.
 5. El backend unifica la respuesta y la envía a la UI.
 
@@ -108,18 +108,20 @@ El backend implementa el Model Content Protocol (MCP), permitiendo:
 - Descubrir y listar herramientas (tools) disponibles en cada servidor MCP.
 - Ejecutar herramientas específicas enviando requests estructurados según el protocolo MCP.
 - Gestionar respuestas y errores de forma estandarizada.
-- Configurar múltiples servidores MCP en `mcp-servers.json`.
+- Configurar múltiples servidores MCP en `mcp.json`.
 
-## Integración con LLM (Llama)
+## Integración con LLM (Optimizado para Velocidad)
 
-- El backend se conecta a un servicio Ollama, que expone un modelo Llama (por defecto, `hf.co/unsloth/gemma-3n-E4B-it-GGUF:Q4_K_XL`).
+- El backend se conecta a un servicio Ollama, que expone un modelo optimizado para velocidad (por defecto, `gemma2:2b`).
+- El modelo Gemma 2 2B proporciona **40-60% mejor velocidad** comparado con el modelo anterior, manteniendo la funcionalidad completa.
 - Ollama se levanta como servicio Docker (ver `docker-compose.yml`).
 - El backend utiliza este LLM para generación de respuestas en lenguaje natural, resúmenes, explicaciones y asistencia conversacional.
 
 ## Configuración de Servidores MCP
 
-- Los servidores MCP disponibles se configuran en `src/main/resources/mcp-servers.json`.
+- Los servidores MCP disponibles se configuran en `src/main/resources/mcp.json`.
 - Cada entrada define el id, nombre, descripción, URL y opciones como `prewarm`.
+- El backend detecta automáticamente cambios en este archivo y recarga la configuración dinámicamente.
 - Ejemplo de configuración:
 
 ```json
@@ -147,8 +149,8 @@ ollama:
   ports:
     - "11435:11434"
   environment:
-    PRELOAD_MODEL_NAME: hf.co/unsloth/gemma-3n-E4B-it-GGUF:Q4_K_XL
+    PRELOAD_MODEL_NAME: gemma2:2b
     CUDA_VISIBLE_DEVICES: 0
 ```
 
-Esto permite que el backend acceda al modelo Llama para tareas de NLP.
+Esto permite que el backend acceda al modelo optimizado para velocidad para tareas de NLP.

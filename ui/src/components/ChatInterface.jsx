@@ -17,9 +17,11 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8083/a
 export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [tools, setTools] = useState([]);
   const [infoCollapsed, setInfoCollapsed] = useState(false);
+  const [editingIndex, setEditingIndex] = useState(null);
   const toast = useRef(null);
   const scrollPanelRef = useRef(null);
 
@@ -83,29 +85,113 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
     }
   }, [messages]);
 
+  const handleInputChange = (e) => {
+    const value = e.target.value;
+    setInputMessage(value);
+
+    const lastWord = value.split(/\s+/).pop();
+    if (lastWord) {
+      const matches = tools
+        .map((t) => t.name)
+        .filter((name) => name.toLowerCase().startsWith(lastWord.toLowerCase()));
+      setSuggestions(matches);
+    } else {
+      setSuggestions([]);
+    }
+  };
+
+  const handleSuggestionClick = (suggestion) => {
+    const words = inputMessage.split(/\s+/);
+    words[words.length - 1] = suggestion;
+    setInputMessage(words.join(' ') + ' ');
+    setSuggestions([]);
+  };
+
+  const handleCopy = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.current?.show({
+        severity: 'info',
+        summary: 'Copied',
+        detail: 'Message copied',
+        life: 2000,
+      });
+    } catch (err) {
+      toast.current?.show({
+        severity: 'error',
+        summary: 'Error',
+        detail: 'Failed to copy',
+        life: 2000,
+      });
+    }
+  };
+
+  const handleEditMessage = (index) => {
+    const message = messages[index];
+    if (!message || message.role !== 'USER') return;
+    setInputMessage(message.content);
+    setMessages(prev => prev.slice(0, index));
+    setEditingIndex(index);
+  };
+
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || !selectedServer || !conversationId || selectedServer.status !== 'CONNECTED' || !toolsAcknowledged || loading) return;
 
-    const userMessage = {
-      id: Date.now().toString(),
-      role: 'USER',
-      content: inputMessage,
-      timestamp: Date.now(),
-      serverId: selectedServer.id,
-    };
-
-    setMessages(prev => [...prev, userMessage]);
-    setInputMessage('');
+    setSuggestions([]);
     setLoading(true);
 
+    const sendSequential = async (userMsgs) => {
+      let newMessages = [];
+      for (const msg of userMsgs) {
+        newMessages = [...newMessages, msg];
+        setMessages(newMessages);
+        const response = await chatService.sendMessage(
+          BACKEND_URL,
+          selectedServer.id,
+          msg.content,
+          conversationId
+        );
+        newMessages = [...newMessages, response];
+        setMessages(newMessages);
+      }
+    };
+
     try {
-      const response = await chatService.sendMessage(
+      if (editingIndex !== null) {
+        await chatService.clearConversation(BACKEND_URL, conversationId);
+        const priorUserMessages = messages.filter(m => m.role === 'USER');
+        const allUserMessages = [
+          ...priorUserMessages,
+          {
+            id: Date.now().toString(),
+            role: 'USER',
+            content: inputMessage,
+            timestamp: Date.now(),
+            serverId: selectedServer.id,
+          },
+        ];
+        setMessages([]);
+        await sendSequential(allUserMessages);
+        setEditingIndex(null);
+      } else {
+        const userMessage = {
+          id: Date.now().toString(),
+          role: 'USER',
+          content: inputMessage,
+          timestamp: Date.now(),
+          serverId: selectedServer.id,
+        };
+
+        setMessages(prev => [...prev, userMessage]);
+        const response = await chatService.sendMessage(
           BACKEND_URL,
           selectedServer.id,
           inputMessage,
           conversationId
-      );
-      setMessages(prev => [...prev, response]);
+        );
+        setMessages(prev => [...prev, response]);
+      }
+      setInputMessage('');
     } catch (error) {
       toast.current?.show({
         severity: 'error',
@@ -157,6 +243,9 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
+    } else if (e.key === 'Tab' && suggestions.length > 0) {
+      e.preventDefault();
+      handleSuggestionClick(suggestions[0]);
     }
     // Allow Shift+Enter for new lines in multiline input
   };
@@ -168,7 +257,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
     });
   };
 
-  const renderMessage = (message) => {
+  const renderMessage = (message, index) => {
     const isUser = message.role === 'USER';
 
     return (
@@ -182,12 +271,30 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
           </div>
           <div className="chat-message-content">
             <div className="chat-message-header">
-            <span className="chat-message-role">
-              {isUser ? 'You' : selectedServer?.name || 'Assistant'}
-            </span>
-              <span className="chat-message-time">
-              {formatTimestamp(message.timestamp)}
-            </span>
+              <div className="chat-message-meta">
+                <span className="chat-message-role">
+                  {isUser ? 'You' : selectedServer?.name || 'Assistant'}
+                </span>
+                <span className="chat-message-time">
+                  {formatTimestamp(message.timestamp)}
+                </span>
+              </div>
+              <div className="chat-message-actions">
+                <Button
+                  icon="pi pi-copy"
+                  className="p-button-text p-button-rounded p-button-sm"
+                  onClick={() => handleCopy(message.content)}
+                  tooltip="Copy message"
+                />
+                {isUser && (
+                  <Button
+                    icon="pi pi-pencil"
+                    className="p-button-text p-button-rounded p-button-sm"
+                    onClick={() => handleEditMessage(index)}
+                    tooltip="Edit message"
+                  />
+                )}
+              </div>
             </div>
             <div className="chat-message-text">
               {isUser ? (
@@ -305,7 +412,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
                     <p>Start a conversation by typing a message below.</p>
                   </div>
               ) : (
-                  messages.map(renderMessage)
+                  messages.map((m, i) => renderMessage(m, i))
               )}
               {loading && (
                   <div className="chat-message assistant">
@@ -326,7 +433,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
             <div className="chat-input-container">
               <AutocompleteTextarea
                   value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
+                  onChange={handleInputChange}
                   onKeyDown={handleKeyPress}
                   placeholder={`Type your message to ${selectedServer.name}... (Enter to send, Shift+Enter for new line)`}
                   className="chat-input-field"
@@ -342,6 +449,15 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
                   className="chat-send-button"
               />
             </div>
+            {suggestions.length > 0 && (
+              <ul className="chat-suggestions">
+                {suggestions.map((s) => (
+                  <li key={s} onClick={() => handleSuggestionClick(s)}>
+                    {s}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </Card>
       </div>

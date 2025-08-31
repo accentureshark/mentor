@@ -1,0 +1,33 @@
+{
+  "_comment": "Set \"prewarm\": true on a server to prestart its container during application startup.",
+  "servers": [
+    {
+      "id": "melian-local",
+      "name": "Melian MCP Server (Local)",
+      "description": "Local MELIAN - Embedding Module and Intelligent Logic for Natural Access",
+      "url": "http://localhost:9090",
+      "implemented": true
+    },
+    {
+      "id": "github-stdio",
+      "name": "GitHub MCP Server (STDIO)",
+      "description": "Local GitHub MCP Server running via stdio and Docker",
+      "url": "stdio://docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN} -e GITHUB_DYNAMIC_TOOLSETS=1 ghcr.io/github/github-mcp-server",
+      "implemented": true,
+      "prewarm": true,
+      "environment": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}",
+        "GITHUB_DYNAMIC_TOOLSETS": "1"
+      }
+    },
+    {
+      "id": "polenta-local",
+      "name": "Polenta MCP Server (Local)",
+      "description": "Polenta MCP Server for Data Lake access with PrestoDB",
+      "url": "http://localhost:25001",
+      "implemented": true,
+      "prewarm": true
+    }
+
+  ]
+}

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
+import org.shark.mentor.mcp.application.service.chat.ChatService;
 
 import static org.junit.jupiter.api.Assertions.*;
 

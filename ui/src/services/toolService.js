@@ -1,7 +1,9 @@
+import { normalizeBaseUrl } from './urlUtils';
+
 // Servicio para obtener tools del backend
 export async function getServerTools(serverId) {
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8083';
-  const url = `${BACKEND_URL}/api/mcp/tools/${serverId}`;
+  const url = `${normalizeBaseUrl(BACKEND_URL)}/tools/${serverId}`;
   console.log(`[toolService] Requesting tools from ${url}`);
   const start = performance.now();
   try {
@@ -20,4 +22,3 @@ export async function getServerTools(serverId) {
     throw error;
   }
 }
-

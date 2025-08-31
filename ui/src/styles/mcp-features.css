@@ -1,0 +1,57 @@
+.mcp-features-panel {
+  margin: 1rem 0;
+}
+
+.capabilities-overview {
+  margin-bottom: 1.5rem;
+}
+
+.capabilities-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.capability-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  background-color: #f9f9f9;
+}
+
+.features-actions {
+  margin-top: 1rem;
+  text-align: center;
+}
+
+.features-actions .p-button {
+  margin: 0 0.25rem;
+}
+
+/* Resource and prompt tables */
+.p-datatable.p-datatable-sm .p-datatable-tbody > tr > td {
+  padding: 0.5rem;
+}
+
+.p-tabview-panel {
+  padding: 1rem;
+}
+
+/* Accordions */
+.p-accordion-content {
+  padding: 1rem;
+}
+
+.p-accordion-content pre {
+  background-color: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 1rem;
+  overflow-x: auto;
+  font-size: 12px;
+  max-height: 300px;
+}

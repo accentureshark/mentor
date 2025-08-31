@@ -109,14 +109,29 @@
 
 .chat-message-header {
   display: flex;
-  gap: 0.5rem;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 0.25rem;
   font-size: 0.75rem;
   color: #666;
 }
 
+.chat-message-meta {
+  display: flex;
+  gap: 0.5rem;
+}
+
 .chat-message.user .chat-message-header {
   flex-direction: row-reverse;
+}
+
+.chat-message.user .chat-message-meta {
+  flex-direction: row-reverse;
+}
+
+.chat-message-actions {
+  display: flex;
+  gap: 0.25rem;
 }
 
 .chat-message-text {
@@ -172,6 +187,7 @@
   border-top: 1px solid #e0e0e0;
   background: white;
   flex-shrink: 0;
+  position: relative;
 }
 
 .chat-input-container {
@@ -218,6 +234,31 @@
 .chat-send-button:disabled {
   background: #ccc;
   cursor: not-allowed;
+}
+
+.chat-suggestions {
+  position: absolute;
+  bottom: 60px;
+  left: 1rem;
+  right: 1rem;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  max-height: 150px;
+  overflow-y: auto;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  z-index: 10;
+}
+
+.chat-suggestions li {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+}
+
+.chat-suggestions li:hover {
+  background: #f0f0f0;
 }
 
 /* Empty chat state */
