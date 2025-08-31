@@ -22,6 +22,8 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
   const [tools, setTools] = useState([]);
   const [infoCollapsed, setInfoCollapsed] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
+  const [useStreaming, setUseStreaming] = useState(false);
+  const [streamingMessage, setStreamingMessage] = useState('');
   const toast = useRef(null);
   const scrollPanelRef = useRef(null);
 
@@ -139,6 +141,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
 
     setSuggestions([]);
     setLoading(true);
+    setStreamingMessage('');
 
     const sendSequential = async (userMsgs) => {
       let newMessages = [];
@@ -153,6 +156,81 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
         );
         newMessages = [...newMessages, response];
         setMessages(newMessages);
+      }
+    };
+
+    const sendStreamingMessage = async (userMessage) => {
+      setMessages(prev => [...prev, userMessage]);
+      
+      // Create placeholder assistant message
+      const assistantId = Date.now().toString() + '-assistant';
+      const assistantMessage = {
+        id: assistantId,
+        role: 'ASSISTANT',
+        content: '',
+        timestamp: Date.now(),
+        serverId: selectedServer.id,
+        streaming: true
+      };
+      setMessages(prev => [...prev, assistantMessage]);
+
+      let accumulatedContent = '';
+      
+      try {
+        await chatService.sendMessageStream(
+          BACKEND_URL,
+          selectedServer.id,
+          userMessage.content,
+          conversationId,
+          (event) => {
+            console.log('📡 Streaming event:', event);
+            
+            switch (event.type) {
+              case 'status':
+                setStreamingMessage(event.data);
+                break;
+              case 'chunk':
+                accumulatedContent += event.data;
+                setMessages(prev => prev.map(msg => 
+                  msg.id === assistantId 
+                    ? { ...msg, content: accumulatedContent }
+                    : msg
+                ));
+                break;
+              case 'message':
+                setMessages(prev => prev.map(msg => 
+                  msg.id === assistantId 
+                    ? { ...msg, content: event.data, streaming: false }
+                    : msg
+                ));
+                break;
+              case 'complete':
+                setMessages(prev => prev.map(msg => 
+                  msg.id === assistantId 
+                    ? { ...msg, streaming: false }
+                    : msg
+                ));
+                setStreamingMessage('');
+                break;
+              case 'error':
+                setMessages(prev => prev.map(msg => 
+                  msg.id === assistantId 
+                    ? { ...msg, content: `Error: ${event.data}`, streaming: false }
+                    : msg
+                ));
+                setStreamingMessage('');
+                break;
+            }
+          }
+        );
+      } catch (error) {
+        console.error('Streaming error:', error);
+        setMessages(prev => prev.map(msg => 
+          msg.id === assistantId 
+            ? { ...msg, content: `Error: ${error.message}`, streaming: false }
+            : msg
+        ));
+        setStreamingMessage('');
       }
     };
 
@@ -182,14 +260,18 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
           serverId: selectedServer.id,
         };
 
-        setMessages(prev => [...prev, userMessage]);
-        const response = await chatService.sendMessage(
-          BACKEND_URL,
-          selectedServer.id,
-          inputMessage,
-          conversationId
-        );
-        setMessages(prev => [...prev, response]);
+        if (useStreaming) {
+          await sendStreamingMessage(userMessage);
+        } else {
+          setMessages(prev => [...prev, userMessage]);
+          const response = await chatService.sendMessage(
+            BACKEND_URL,
+            selectedServer.id,
+            inputMessage,
+            conversationId
+          );
+          setMessages(prev => [...prev, response]);
+        }
       }
       setInputMessage('');
     } catch (error) {
@@ -442,13 +524,28 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
                   autoResize
                   tools={tools}
               />
-              <Button
-                  icon="pi pi-send"
-                  onClick={handleSendMessage}
-                  disabled={!inputMessage.trim() || loading || !conversationId || selectedServer.status !== 'CONNECTED' || !toolsAcknowledged}
-                  className="chat-send-button"
-              />
+              <div className="chat-input-actions">
+                <Button
+                    icon={useStreaming ? "pi pi-check-circle" : "pi pi-circle"}
+                    onClick={() => setUseStreaming(!useStreaming)}
+                    className={`p-button-text ${useStreaming ? 'p-button-success' : ''}`}
+                    tooltip={useStreaming ? "Streaming enabled" : "Click to enable streaming"}
+                    size="small"
+                />
+                <Button
+                    icon="pi pi-send"
+                    onClick={handleSendMessage}
+                    disabled={!inputMessage.trim() || loading || !conversationId || selectedServer.status !== 'CONNECTED' || !toolsAcknowledged}
+                    className="chat-send-button"
+                />
+              </div>
             </div>
+            {streamingMessage && (
+              <div className="chat-streaming-status">
+                <i className="pi pi-spin pi-spinner" style={{ marginRight: '0.5rem' }}></i>
+                {streamingMessage}
+              </div>
+            )}
             {suggestions.length > 0 && (
               <ul className="chat-suggestions">
                 {suggestions.map((s) => (
