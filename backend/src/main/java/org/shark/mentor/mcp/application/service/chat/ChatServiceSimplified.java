@@ -2,12 +2,14 @@ package org.shark.mentor.mcp.application.service.chat;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.shark.mentor.mcp.application.service.formatting.ResponseFormatterService;
 import org.shark.mentor.mcp.application.service.llm.LlmServiceEnhanced;
 import org.shark.mentor.mcp.application.service.server.McpServerService;
 import org.shark.mentor.mcp.application.service.tool.McpToolOrchestrator;
 import org.shark.mentor.mcp.domain.model.ChatMessage;
 import org.shark.mentor.mcp.domain.model.McpRequest;
 import org.shark.mentor.mcp.domain.model.McpServer;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -15,16 +17,40 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Simplified chat service using langchain4j and the new MCP tool orchestrator
+ * with optimized response formatting to reduce LLM calls for common patterns
  */
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class ChatServiceSimplified {
 
     private final Map<String, List<ChatMessage>> conversations = new ConcurrentHashMap<>();
     private final McpServerService mcpServerService;
     private final McpToolOrchestrator mcpToolOrchestrator;
     private final LlmServiceEnhanced llmService;
+    private final ResponseFormatterService responseFormatterService;
+
+    private boolean enableTemplateFormatting = true;
+    private boolean templateFirst = true;
+
+    public ChatServiceSimplified(McpServerService mcpServerService, 
+                                McpToolOrchestrator mcpToolOrchestrator,
+                                LlmServiceEnhanced llmService,
+                                ResponseFormatterService responseFormatterService) {
+        this.mcpServerService = mcpServerService;
+        this.mcpToolOrchestrator = mcpToolOrchestrator;
+        this.llmService = llmService;
+        this.responseFormatterService = responseFormatterService;
+    }
+
+    @Value("${llm.formatting.enable-template-formatting:true}")
+    public void setEnableTemplateFormatting(boolean enableTemplateFormatting) {
+        this.enableTemplateFormatting = enableTemplateFormatting;
+    }
+
+    @Value("${llm.formatting.template-first:true}")
+    public void setTemplateFirst(boolean templateFirst) {
+        this.templateFirst = templateFirst;
+    }
 
     public List<ChatMessage> getConversation(String conversationId) {
         return conversations.getOrDefault(conversationId, new ArrayList<>());
@@ -72,8 +98,26 @@ public class ChatServiceSimplified {
             // Use the MCP tool orchestrator to get context from the server
             String mcpContext = mcpToolOrchestrator.executeTool(server, request.getMessage());
             
-            // Use the enhanced LLM service to generate response with conversation memory
-            String assistantContent = llmService.generateWithMemory(conversationId, request.getMessage(), mcpContext);
+            String assistantContent;
+            boolean usedTemplate = false;
+            
+            // Try template-based formatting first if enabled
+            if (enableTemplateFormatting && templateFirst) {
+                assistantContent = responseFormatterService.tryFormatWithoutLlm(
+                    mcpContext, request.getMessage(), server);
+                
+                if (assistantContent != null) {
+                    usedTemplate = true;
+                    log.debug("Used template-based formatting for conversation {} (avoiding LLM call)", conversationId);
+                } else {
+                    // Fall back to LLM if template formatting wasn't suitable
+                    assistantContent = llmService.generateWithMemory(conversationId, request.getMessage(), mcpContext, server);
+                    log.debug("Template formatting not suitable, used LLM for conversation {}", conversationId);
+                }
+            } else {
+                // Use LLM directly if template formatting is disabled
+                assistantContent = llmService.generateWithMemory(conversationId, request.getMessage(), mcpContext, server);
+            }
             
             // Create assistant response message
             ChatMessage assistantMessage = ChatMessage.builder()
@@ -86,8 +130,13 @@ public class ChatServiceSimplified {
 
             addMessageToConversation(conversationId, assistantMessage);
             
-            log.info("Successfully processed message for conversation {} using server {}", 
-                    conversationId, server.getName());
+            if (usedTemplate) {
+                log.info("Successfully processed message for conversation {} using server {} (template formatting)", 
+                        conversationId, server.getName());
+            } else {
+                log.info("Successfully processed message for conversation {} using server {} (LLM formatting)", 
+                        conversationId, server.getName());
+            }
             
             return assistantMessage;
 

@@ -137,6 +137,11 @@ llm:
     max-conversations-in-memory: ${LLM_MAX_CONVERSATIONS:100}
     fast-timeout-seconds: ${LLM_FAST_TIMEOUT_SECONDS:30}  # Faster timeout for better user experience
     enable-async-processing: ${LLM_ENABLE_ASYNC:true}
+  # Response formatting optimization settings
+  formatting:
+    enable-template-formatting: ${LLM_ENABLE_TEMPLATE_FORMATTING:true}  # Use templates for common patterns
+    template-first: ${LLM_TEMPLATE_FIRST:true}  # Try templates before LLM
+    max-simple-response-length: ${LLM_MAX_SIMPLE_LENGTH:200}  # Max length for simple template responses
 
 ui:
   locale: ${UI_LOCALE:en}
