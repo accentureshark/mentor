@@ -17,6 +17,7 @@ import org.shark.mentor.mcp.domain.model.McpServer;
 import org.shark.mentor.mcp.infraestructure.config.UiProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -106,6 +107,19 @@ public class ChatService {
         } else {
             return sendMessageOriginal(request);
         }
+    }
+
+    public SseEmitter sendMessageStream(McpRequest request) {
+        SseEmitter emitter = new SseEmitter(300000L); // 5 minutes timeout
+        
+        // Use simplified implementation if available
+        if (useSimplifiedImplementation) {
+            sendMessageStreamSimplified(request, emitter);
+        } else {
+            sendMessageStreamOriginal(request, emitter);
+        }
+        
+        return emitter;
     }
 
     private ChatMessage sendMessageSimplified(McpRequest request) {
@@ -202,6 +216,135 @@ public class ChatService {
                 .timestamp(System.currentTimeMillis())
                 .serverId(request.getServerId())
                 .build();
+    }
+
+    private void sendMessageStreamSimplified(McpRequest request, SseEmitter emitter) {
+        String conversationId = request.getConversationId();
+        if (conversationId == null) {
+            conversationId = "default";
+        }
+
+        try {
+            // Send initial status
+            emitter.send("event: status\ndata: Processing request...\n\n");
+
+            // Validar y obtener el servidor
+            Optional<McpServer> serverOpt = mcpServerService.getServer(request.getServerId());
+            if (serverOpt.isEmpty()) {
+                emitter.send("event: error\ndata: Servidor no encontrado: " + request.getServerId() + "\n\n");
+                emitter.complete();
+                return;
+            }
+            McpServer server = serverOpt.get();
+            if (!"CONNECTED".equals(server.getStatus())) {
+                String errorDetails = server.getLastError() != null ? " (Error: " + server.getLastError() + ")" : "";
+                String errorMessage = "The server is not connected: " + server.getName() + errorDetails + ". Use the connection button in the server list to attempt to connect.";
+                emitter.send("event: error\ndata: " + errorMessage + "\n\n");
+                emitter.complete();
+                return;
+            }
+
+            // Handle empty or special commands
+            String query = request.getMessage();
+            if (query == null || query.trim().isEmpty()) {
+                emitter.complete();
+                return;
+            }
+
+            if ("enable_toolset".equals(query.trim())) {
+                String acknowledgeText = i18nService.getMessage("tools.enabled", server.getName());
+                emitter.send("event: message\ndata: " + acknowledgeText + "\n\n");
+                emitter.complete();
+                return;
+            }
+
+            // Create and save user message
+            ChatMessage userMessage = ChatMessage.builder()
+                    .id(UUID.randomUUID().toString())
+                    .role("USER")
+                    .content(request.getMessage())
+                    .timestamp(System.currentTimeMillis())
+                    .serverId(request.getServerId())
+                    .build();
+            addMessageToConversation(conversationId, userMessage);
+
+            // Send status update
+            emitter.send("event: status\ndata: Executing MCP tools...\n\n");
+
+            // Execute tool
+            String context = mcpToolOrchestrator.executeTool(server, query);
+            if (context == null || context.trim().isEmpty()) {
+                context = "No se encontraron resultados relevantes para la consulta.";
+            }
+
+            // Send status update
+            emitter.send("event: status\ndata: Generating response with LLM...\n\n");
+
+            // Generate response
+            String assistantContent = enhancedLlmService.generateWithMemory(conversationId, query, context, server);
+
+            if (assistantContent != null && assistantContent.startsWith("Error generating response:")) {
+                log.warn("LLM service returned error for conversation {}, using MCP context: {}", conversationId, assistantContent);
+                assistantContent = formatMcpResponse(context, request.getMessage(), server.getName());
+            }
+
+            // Stream the response in chunks to simulate real-time streaming
+            streamResponse(emitter, assistantContent);
+
+            // Create and save assistant message
+            ChatMessage assistantMessage = ChatMessage.builder()
+                    .id(UUID.randomUUID().toString())
+                    .role("ASSISTANT")
+                    .content(assistantContent)
+                    .timestamp(System.currentTimeMillis())
+                    .serverId(request.getServerId())
+                    .build();
+            addMessageToConversation(conversationId, assistantMessage);
+
+            emitter.send("event: complete\ndata: Response completed\n\n");
+            emitter.complete();
+
+        } catch (Exception e) {
+            log.error("Error processing streaming message: {}", e.getMessage(), e);
+            try {
+                emitter.send("event: error\ndata: Error processing message: " + e.getMessage() + "\n\n");
+                emitter.complete();
+            } catch (Exception ex) {
+                log.error("Error sending error message via SSE: {}", ex.getMessage());
+                emitter.completeWithError(ex);
+            }
+        }
+    }
+
+    private void sendMessageStreamOriginal(McpRequest request, SseEmitter emitter) {
+        // For now, fallback to simplified implementation
+        sendMessageStreamSimplified(request, emitter);
+    }
+
+    private void streamResponse(SseEmitter emitter, String content) throws Exception {
+        if (content == null || content.isEmpty()) {
+            return;
+        }
+
+        // Split response into words for streaming effect
+        String[] words = content.split("\\s+");
+        StringBuilder currentChunk = new StringBuilder();
+        
+        for (int i = 0; i < words.length; i++) {
+            currentChunk.append(words[i]);
+            if (i < words.length - 1) {
+                currentChunk.append(" ");
+            }
+
+            // Send chunk every 3-5 words or at the end
+            if (currentChunk.length() > 50 || i == words.length - 1) {
+                emitter.send("event: chunk\ndata: " + currentChunk.toString() + "\n\n");
+                currentChunk = new StringBuilder();
+                
+                // Small delay to simulate real streaming
+                Thread.sleep(100);
+            }
+        }
     }
 
     private ChatMessage createInitialConnectionMessage(McpRequest request, McpServer server) {

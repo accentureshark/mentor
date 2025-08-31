@@ -4,8 +4,10 @@ import org.shark.mentor.mcp.application.service.chat.ChatService;
 import org.shark.mentor.mcp.domain.model.ChatMessage;
 import org.shark.mentor.mcp.domain.model.McpRequest;
 
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -42,6 +44,12 @@ public class ChatController {
         log.info("Sending message to server {}: {}", request.getServerId(), request.getMessage());
         ChatMessage response = chatService.sendMessage(request);
         return ResponseEntity.ok(response);
+    }
+    
+    @PostMapping(value = "/send/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter sendMessageStream(@RequestBody McpRequest request) {
+        log.info("Sending streaming message to server {}: {}", request.getServerId(), request.getMessage());
+        return chatService.sendMessageStream(request);
     }
     
     @DeleteMapping("/conversations/{conversationId}")

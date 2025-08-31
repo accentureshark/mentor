@@ -95,27 +95,82 @@ From the root directory:
 - El backend puede conectarse a múltiples servidores MCP (configurados en `src/main/resources/mcp-servers.json`).
 - Para tareas de generación de lenguaje natural, el backend utiliza el servicio Ollama con modelo `gemma2:2b` optimizado para velocidad.
 
-### Flujo de Datos
+### Flujo de Datos (con Streaming en Tiempo Real)
 1. El usuario realiza una consulta desde la UI.
 2. El backend recibe la petición y determina si debe consultar un servidor MCP, el LLM, o ambos.
-3. Si la consulta requiere generación de lenguaje, el backend envía la petición a Ollama (modelo optimizado) y procesa la respuesta.
-4. Si la consulta requiere datos estructurados, el backend consulta el servidor MCP correspondiente.
-5. El backend unifica la respuesta y la envía a la UI.
+3. Si la consulta requiere generación de lenguaje, el backend envía la petición a Ollama (modelo optimizado) y **transmite la respuesta en streaming** via Server-Sent Events (SSE) para una experiencia de usuario dinámica.
+4. Si la consulta requiere datos estructurados, el backend consulta el servidor MCP correspondiente, con soporte para **streaming de resultados grandes**.
+5. El backend unifica las respuestas y las envía a la UI, manteniendo la conexión en tiempo real para actualizaciones progresivas.
+6. La UI actualiza el contenido de forma incremental conforme llegan los datos, proporcionando retroalimentación inmediata al usuario.
 
 ## Cumplimiento del Protocolo MCP
 
-El backend implementa el Model Content Protocol (MCP), permitiendo:
-- Descubrir y listar herramientas (tools) disponibles en cada servidor MCP.
-- Ejecutar herramientas específicas enviando requests estructurados según el protocolo MCP.
-- Gestionar respuestas y errores de forma estandarizada.
-- Configurar múltiples servidores MCP en `mcp.json`.
+El backend implementa completamente el **Model Context Protocol (MCP)** versión `2025-06-18`, garantizando una integración universal y estándar con cualquier servidor MCP compatible. Mentor es un **cliente MCP totalmente conforme** que cumple con todas las especificaciones oficiales.
 
-## Integración con LLM (Optimizado para Velocidad)
+### Especificaciones MCP Implementadas
+
+**✅ Protocolo Base del Servidor** ([especificación](https://modelcontextprotocol.io/specification/2025-06-18/server))
+- Protocolo JSON-RPC 2.0 completo
+- Endpoint base: `{server_url}/mcp`
+- Endpoint de salud: `{server_url}/mcp/health`
+- Validación de versión de protocolo
+- Declaración de capacidades del servidor
+
+**✅ Soporte de Herramientas** ([especificación](https://modelcontextprotocol.io/specification/2025-06-18/server/tools))
+- `tools/list` - Listar herramientas disponibles
+- `tools/call` - Ejecutar herramientas específicas
+- Manejo de parámetros y esquemas de validación
+- Gestión de respuestas estructuradas
+
+**✅ Soporte de Prompts** ([especificación](https://modelcontextprotocol.io/specification/2025-06-18/server/prompts))
+- `prompts/list` - Listar prompts disponibles
+- `prompts/get` - Obtener contenido de prompts
+- Argumentos dinámicos y plantillas
+
+**✅ Soporte de Recursos** ([especificación](https://modelcontextprotocol.io/specification/2025-06-18/server/resources))
+- `resources/list` - Listar recursos disponibles
+- `resources/read` - Leer contenido de recursos
+- Suscripción a cambios de recursos
+
+**✅ Utilidades de Finalización** ([especificación](https://modelcontextprotocol.io/specification/2025-06-18/server/utilities/completion))
+- Autocompletado de argumentos
+- Sugerencias contextuales
+
+**✅ Utilidades de Logging** ([especificación](https://modelcontextprotocol.io/specification/2025-06-18/server/utilities/logging))
+- Registro estructurado de eventos
+- Niveles de log estándar
+
+**✅ Utilidades de Paginación** ([especificación](https://modelcontextprotocol.io/specification/2025-06-18/server/utilities/pagination))
+- Manejo de grandes conjuntos de datos
+- Cursores de paginación
+
+### Características de Compatibilidad Universal
+
+- **Detección Automática**: El cliente descubre automáticamente las capacidades de cada servidor MCP
+- **Configuración Dinámica**: Recarga automática de configuración desde `mcp.json`
+- **Gestión de Errores**: Manejo estandarizado de errores según JSON-RPC 2.0
+- **Streaming de Respuestas**: Soporte para respuestas en tiempo real tanto de servidores MCP como del LLM
+- **Validación de Protocolo**: Verificación automática de versión y compatibilidad
+- **Multiplexación**: Conexión simultánea a múltiples servidores MCP
+
+### Integración con Servidores MCP
+
+El sistema puede conectarse a cualquier servidor MCP que implemente las especificaciones oficiales, incluyendo:
+- Servidores locales (http://localhost:*)
+- Servidores remotos (https://*)
+- Múltiples instancias simultáneas
+- Reconexión automática en caso de fallo
+
+Para más detalles sobre el cumplimiento completo, consulte el `MCP_COMPLIANCE_REPORT.md`.
+
+## Integración con LLM (Optimizado para Velocidad y Streaming)
 
 - El backend se conecta a un servicio Ollama, que expone un modelo optimizado para velocidad (por defecto, `gemma2:2b`).
 - El modelo Gemma 2 2B proporciona **40-60% mejor velocidad** comparado con el modelo anterior, manteniendo la funcionalidad completa.
+- **Streaming de Respuestas**: Las respuestas del LLM se transmiten en tiempo real usando Server-Sent Events (SSE), proporcionando una experiencia de usuario más dinámica y responsiva.
+- **Streaming de Datos MCP**: Las respuestas de servidores MCP también soportan streaming para consultas de gran volumen.
 - Ollama se levanta como servicio Docker (ver `docker-compose.yml`).
-- El backend utiliza este LLM para generación de respuestas en lenguaje natural, resúmenes, explicaciones y asistencia conversacional.
+- El backend utiliza este LLM para generación de respuestas en lenguaje natural, resúmenes, explicaciones y asistencia conversacional con retroalimentación en tiempo real.
 
 ## Configuración de Servidores MCP
 
