@@ -12,6 +12,7 @@ import org.shark.mentor.mcp.application.service.server.McpServerService;
 import org.shark.mentor.mcp.application.service.tool.McpToolOrchestrator;
 import org.shark.mentor.mcp.application.service.llm.LlmServiceEnhanced;
 import org.shark.mentor.mcp.application.service.chat.ChatServiceSimplified;
+import org.shark.mentor.mcp.application.service.formatting.ResponseFormatterService;
 
 import java.util.Optional;
 
@@ -32,12 +33,15 @@ class SimplifiedArchitectureTest {
     
     @Mock
     private LlmServiceEnhanced llmService;
+    
+    @Mock
+    private ResponseFormatterService responseFormatterService;
 
     private ChatServiceSimplified chatService;
 
     @BeforeEach
     void setUp() {
-        chatService = new ChatServiceSimplified(mcpServerService, mcpToolOrchestrator, llmService);
+        chatService = new ChatServiceSimplified(mcpServerService, mcpToolOrchestrator, llmService, responseFormatterService);
     }
 
     @Test
@@ -105,7 +109,9 @@ class SimplifiedArchitectureTest {
         when(mcpServerService.getServer("test-server")).thenReturn(Optional.of(server));
         when(mcpToolOrchestrator.executeTool(server, "Search for repositories"))
                 .thenReturn("Found 5 repositories");
-        when(llmService.generateWithMemory("test-conv", "Search for repositories", "Found 5 repositories"))
+        when(responseFormatterService.tryFormatWithoutLlm("Found 5 repositories", "Search for repositories", server))
+                .thenReturn(null); // Return null to force LLM usage
+        when(llmService.generateWithMemory("test-conv", "Search for repositories", "Found 5 repositories", server))
                 .thenReturn("Based on the search results, I found 5 repositories that match your criteria.");
 
         // When
@@ -120,7 +126,8 @@ class SimplifiedArchitectureTest {
         
         // Verify interactions
         verify(mcpToolOrchestrator).executeTool(server, "Search for repositories");
-        verify(llmService).generateWithMemory("test-conv", "Search for repositories", "Found 5 repositories");
+        verify(responseFormatterService).tryFormatWithoutLlm("Found 5 repositories", "Search for repositories", server);
+        verify(llmService).generateWithMemory("test-conv", "Search for repositories", "Found 5 repositories", server);
     }
 
     @Test
@@ -145,8 +152,11 @@ class SimplifiedArchitectureTest {
                 .build();
 
         when(mcpServerService.getServer("test-server")).thenReturn(Optional.of(server));
-        when(mcpToolOrchestrator.executeTool(any(), any())).thenReturn("Test context");
-        when(llmService.generateWithMemory(any(), any(), any())).thenReturn("Test response");
+        when(mcpToolOrchestrator.executeTool(server, "Hello")).thenReturn("Test context");
+        when(responseFormatterService.tryFormatWithoutLlm("Test context", "Hello", server))
+                .thenReturn(null); // Force LLM usage
+        when(llmService.generateWithMemory(conversationId, "Hello", "Test context", server))
+                .thenReturn("Test response");
 
         chatService.sendMessage(request);
 
