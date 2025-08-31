@@ -12,6 +12,7 @@ public class LlmProperties {
     private String model;
     private Api api = new Api();
     private ModelConfig modelConfig = new ModelConfig();
+    private Performance performance = new Performance();
 
     @Data
     public static class Api {
@@ -24,5 +25,21 @@ public class LlmProperties {
         private double temperature = 0.7;
         private int timeoutMinutes = 2;
         private String defaultLocale = "en";
+    }
+    
+    @Data
+    public static class Performance {
+        private boolean enableCaching = true;
+        private int cacheTtlMinutes = 10;
+        private int maxCacheSize = 1000;
+        private boolean enableConnectionPooling = true;
+        private int maxPoolSize = 10;
+        private boolean enableConversationMemoryCleanup = true;
+        private int conversationMemoryTtlMinutes = 60;
+        private int maxConversationsInMemory = 100;
+        // Optimized timeout for faster responses
+        private int fastTimeoutSeconds = 30;
+        // Enable async processing for non-blocking operations
+        private boolean enableAsyncProcessing = true;
     }
 }
