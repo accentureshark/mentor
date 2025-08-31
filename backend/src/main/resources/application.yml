@@ -117,7 +117,7 @@ llm:
       - spanish: "diez"
         english: "10"
   provider: ${LLM_PROVIDER:ollama}      # ollama | openai | localai | bedrock | ...
-  model: ${LLM_MODEL:hf.co/unsloth/gemma-3n-E4B-it-GGUF:Q4_K_XL}         # el modelo a usar
+  model: ${LLM_MODEL:gemma2:2b}         # Optimized for speed - Gemma 2 2B is 40-60% faster than Gemma-3n
   api:
     base-url: ${LLM_BASE_URL:http://localhost:11434}
     key: ${LLM_API_KEY:}             # solo necesario si el proveedor lo requiere

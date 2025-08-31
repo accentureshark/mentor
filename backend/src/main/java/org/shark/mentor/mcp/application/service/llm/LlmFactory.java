@@ -40,8 +40,8 @@ public class LlmFactory {
                         .modelName(model)
                         .temperature(temperature)
                         .timeout(Duration.ofMinutes(timeoutMinutes))
-                        // Optimize for performance
-                        .numPredict(2048) // Limit response length for faster generation
+                        // Optimize for speed based on model type
+                        .numPredict(getOptimalResponseLength(model))
                         .build();
                 break;
             
@@ -79,5 +79,23 @@ public class LlmFactory {
      */
     public static int getCacheSize() {
         return modelCache.size();
+    }
+    
+    /**
+     * Get optimal response length based on model type for speed optimization
+     */
+    private static int getOptimalResponseLength(String model) {
+        if (model == null) return 2048;
+        
+        String modelLower = model.toLowerCase();
+        
+        // Smaller models can use shorter responses for speed
+        if (modelLower.contains("gemma2:2b") || modelLower.contains("llama3.2:1b")) {
+            return 1024; // Shorter responses for small, fast models
+        } else if (modelLower.contains("llama3.2:3b") || modelLower.contains("phi3") || modelLower.contains("qwen2.5:3b")) {
+            return 1536; // Medium responses for balanced models
+        } else {
+            return 2048; // Default for larger models
+        }
     }
 }
