@@ -364,22 +364,139 @@ public class IntelligentToolSelector {
         Intent intent = detectPrimaryIntent(lowerMessage);
         String entityType = extractEntityType(lowerMessage);
         
-        // Find tools that match the intent and entity
+        // Score all tools and find the best match
+        Map<String, Integer> toolScores = new HashMap<>();
+        
         for (Map<String, Object> tool : availableTools) {
             String toolName = (String) tool.get("name");
             String description = (String) tool.get("description");
             
-            if (toolMatchesIntentAndEntity(toolName, description, intent, entityType)) {
-                return toolName;
+            int score = scoreToolMatch(toolName, description, intent, entityType, lowerMessage);
+            if (score > 0) {
+                toolScores.put(toolName, score);
             }
         }
         
-        return null;
+        // Return the tool with the highest score
+        return toolScores.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse(null);
+    }
+    
+    private int scoreToolMatch(String toolName, String description, Intent intent, String entityType, String userMessage) {
+        if (toolName == null) return 0;
+        
+        String lowerToolName = toolName.toLowerCase();
+        String lowerDescription = description != null ? description.toLowerCase() : "";
+        
+        int score = 0;
+        
+        // Score entity match in tool name (high priority)
+        boolean entityInName = false;
+        if (!"unknown".equals(entityType)) {
+            entityInName = switch (entityType) {
+                case "branch" -> containsAny(lowerToolName, "branch", "branches");
+                case "repository" -> containsAny(lowerToolName, "repo", "repository", "repositories");
+                case "file" -> containsAny(lowerToolName, "file", "files", "content", "contents");
+                case "issue" -> containsAny(lowerToolName, "issue", "issues");
+                case "pull_request" -> containsAny(lowerToolName, "pull", "pr", "merge");
+                case "commit" -> containsAny(lowerToolName, "commit", "commits");
+                case "table" -> containsAny(lowerToolName, "table", "tables");
+                case "schema" -> containsAny(lowerToolName, "schema", "schemas");
+                case "toolset" -> containsAny(lowerToolName, "toolset", "toolsets");
+                default -> false;
+            };
+            if (entityInName) {
+                score += 50; // High score for entity match in name
+            }
+        }
+        
+        // Score intent match in tool name (medium-high priority)
+        boolean intentInName = switch (intent) {
+            case LIST -> containsAny(lowerToolName, "list", "get", "show");
+            case SEARCH -> containsAny(lowerToolName, "search", "find", "filter", "query");
+            case DESCRIBE -> containsAny(lowerToolName, "describe", "info", "detail", "schema", "structure");
+            case QUERY -> containsAny(lowerToolName, "query", "execute", "run", "sql");
+            case UNKNOWN -> false;
+        };
+        if (intentInName) {
+            score += 30; // Medium-high score for intent match in name
+        }
+        
+        // Bonus for specific user words appearing in tool name
+        for (String word : userMessage.split("\\s+")) {
+            if (word.length() > 2 && lowerToolName.contains(word)) {
+                score += 10; // Bonus for each user word in tool name
+            }
+        }
+        
+        // Score "available" keyword match for toolsets (special case)
+        if ("toolset".equals(entityType) && userMessage.contains("available") && lowerToolName.contains("available")) {
+            score += 20; // Special bonus for available toolsets
+        }
+        
+        // Must have at least entity or intent match to be considered
+        if (!entityInName && !intentInName) {
+            return 0;
+        }
+        
+        return score;
+    }
+    
+    private boolean toolMatchesIntentAndEntityInName(String toolName, Intent intent, String entityType) {
+        if (toolName == null) return false;
+        
+        String lowerToolName = toolName.toLowerCase();
+        
+        // Check entity match in tool name only (more precise)
+        boolean entityMatch = false;
+        if ("unknown".equals(entityType)) {
+            entityMatch = true; // If entity is unknown, any tool could match
+        } else {
+            entityMatch = switch (entityType) {
+                case "branch" -> containsAny(lowerToolName, "branch", "branches");
+                case "repository" -> containsAny(lowerToolName, "repo", "repository", "repositories");
+                case "file" -> containsAny(lowerToolName, "file", "files", "content", "contents");
+                case "issue" -> containsAny(lowerToolName, "issue", "issues");
+                case "pull_request" -> containsAny(lowerToolName, "pull", "pr", "merge");
+                case "commit" -> containsAny(lowerToolName, "commit", "commits");
+                case "table" -> containsAny(lowerToolName, "table", "tables");
+                case "schema" -> containsAny(lowerToolName, "schema", "schemas");
+                case "toolset" -> containsAny(lowerToolName, "toolset", "toolsets");
+                default -> false;
+            };
+        }
+        
+        if (!entityMatch) {
+            return false;
+        }
+        
+        // Check intent match in tool name with priority scoring
+        boolean intentMatch = switch (intent) {
+            case LIST -> {
+                // Prefer tools with explicit list operations
+                if (containsAny(lowerToolName, "list", "get", "show")) {
+                    yield true;
+                }
+                // Accept tools with "available" for list intent on toolsets
+                if ("toolset".equals(entityType) && lowerToolName.contains("available")) {
+                    yield true;
+                }
+                yield false;
+            }
+            case SEARCH -> containsAny(lowerToolName, "search", "find", "filter", "query");
+            case DESCRIBE -> containsAny(lowerToolName, "describe", "info", "detail", "schema", "structure");
+            case QUERY -> containsAny(lowerToolName, "query", "execute", "run", "sql");
+            case UNKNOWN -> true; // If intent is unknown, any entity match in name is good
+        };
+        
+        return intentMatch;
     }
     
     private Intent detectPrimaryIntent(String message) {
         // List/Show/Get intent
-        if (containsAny(message, "list", "listar", "show", "mostrar", "get", "todos", "all", "ver", "dame")) {
+        if (containsAny(message, "list", "listar", "show", "mostrar", "get", "todos", "all", "ver", "dame", "what", "available")) {
             return Intent.LIST;
         }
         
@@ -405,7 +522,7 @@ public class IntelligentToolSelector {
         if (containsAny(message, "branch", "branches", "rama", "ramas")) {
             return "branch";
         }
-        if (containsAny(message, "repo", "repository", "repositories", "repositorio", "repositorios")) {
+        if (containsAny(message, "repositories", "repository", "repositorio", "repositorios", "repos")) {
             return "repository";
         }
         if (containsAny(message, "file", "files", "archivo", "archivos", "content", "contenido")) {
@@ -426,6 +543,13 @@ public class IntelligentToolSelector {
         if (containsAny(message, "schema", "schemas", "esquema", "esquemas")) {
             return "schema";
         }
+        if (containsAny(message, "toolset", "toolsets")) {
+            return "toolset";
+        }
+        // Check for "repo" as a separate word or short form  
+        if (message.matches(".*\\brepo\\b.*") || containsAny(message, " repo ", "repo ")) {
+            return "repository";
+        }
         
         return "unknown";
     }
@@ -437,10 +561,24 @@ public class IntelligentToolSelector {
         String lowerDescription = description != null ? description.toLowerCase() : "";
         String combinedText = lowerToolName + " " + lowerDescription;
         
-        // Check entity match first
-        boolean entityMatch = "unknown".equals(entityType) || 
-                             combinedText.contains(entityType) ||
-                             containsEntityVariations(combinedText, entityType);
+        // Check entity match first - this is the most important
+        boolean entityMatch = false;
+        if ("unknown".equals(entityType)) {
+            entityMatch = true; // If entity is unknown, any tool could match
+        } else {
+            entityMatch = switch (entityType) {
+                case "branch" -> containsAny(combinedText, "branch", "branches");
+                case "repository" -> containsAny(combinedText, "repo", "repository", "repositories");
+                case "file" -> containsAny(combinedText, "file", "files", "content", "contents");
+                case "issue" -> containsAny(combinedText, "issue", "issues");
+                case "pull_request" -> containsAny(combinedText, "pull", "pr", "merge");
+                case "commit" -> containsAny(combinedText, "commit", "commits");
+                case "table" -> containsAny(combinedText, "table", "tables");
+                case "schema" -> containsAny(combinedText, "schema", "schemas");
+                case "toolset" -> containsAny(combinedText, "toolset", "toolsets", "available");
+                default -> false;
+            };
+        }
         
         if (!entityMatch) {
             return false;

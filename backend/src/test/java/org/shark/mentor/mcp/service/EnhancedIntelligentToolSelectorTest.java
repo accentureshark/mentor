@@ -157,7 +157,7 @@ class EnhancedIntelligentToolSelectorTest {
         String[] expectedTools = {
             "list_branches",
             "list_repositories", 
-            "get_file_contents",
+            "get_file_contents", // "buscar archivos" -> "file" entity is strongly matched by get_file_contents  
             "list_issues"
         };
         
