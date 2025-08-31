@@ -101,9 +101,16 @@ public class ResponseFormatterService {
         String jsonString = jsonNode.toString().toLowerCase();
         String userQuery = userMessage != null ? userMessage.toLowerCase() : "";
         
-        return (userQuery.contains("schema") || userQuery.contains("esquema") || 
-                userQuery.contains("tabla") || userQuery.contains("table")) &&
-               (jsonString.contains("schema") || jsonString.contains("table"));
+        // Check if user query contains schema-related keywords
+        boolean userAsksForSchemas = userQuery.contains("schema") || userQuery.contains("esquema") || 
+                                   userQuery.contains("tabla") || userQuery.contains("table");
+        
+        // Check if JSON contains schema data in various formats
+        boolean hasSchemaData = jsonString.contains("schema") || jsonString.contains("table") ||
+                               (jsonNode.has("result") && jsonNode.get("result").has("schemas")) ||
+                               jsonNode.has("schemas");
+        
+        return userAsksForSchemas && hasSchemaData;
     }
 
     private boolean isFileResponse(JsonNode jsonNode, String userMessage) {
@@ -120,12 +127,25 @@ public class ResponseFormatterService {
         StringBuilder response = new StringBuilder();
         response.append(formatHeader(server, "🏗️ Schemas Disponibles"));
         
+        // Check for direct schemas property
         if (jsonNode.has("schemas") && jsonNode.get("schemas").isArray()) {
             for (JsonNode schema : jsonNode.get("schemas")) {
-                String schemaName = schema.has("name") ? schema.get("name").asText() : "unknown";
+                String schemaName = schema.isTextual() ? schema.asText() : 
+                                   schema.has("name") ? schema.get("name").asText() : "unknown";
                 response.append(formatSchemaItem(schemaName));
             }
-        } else if (jsonNode.isArray()) {
+        }
+        // Check for nested result.schemas structure
+        else if (jsonNode.has("result") && jsonNode.get("result").has("schemas") && 
+                 jsonNode.get("result").get("schemas").isArray()) {
+            for (JsonNode schema : jsonNode.get("result").get("schemas")) {
+                String schemaName = schema.isTextual() ? schema.asText() : 
+                                   schema.has("name") ? schema.get("name").asText() : "unknown";
+                response.append(formatSchemaItem(schemaName));
+            }
+        }
+        // Check if root is an array of schemas
+        else if (jsonNode.isArray()) {
             for (JsonNode schema : jsonNode) {
                 String schemaName = schema.isTextual() ? schema.asText() : 
                                    schema.has("name") ? schema.get("name").asText() : "unknown";
