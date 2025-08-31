@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Simplified chat service using langchain4j and the new MCP tool orchestrator
  * with optimized response formatting to reduce LLM calls for common patterns
- */
+s */
 @Service
 @Slf4j
 public class ChatServiceSimplified {
