@@ -6,8 +6,14 @@ import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.output.Response;
 import org.junit.jupiter.api.Test;
-import org.shark.mentor.mcp.config.LlmProperties;
-import org.shark.mentor.mcp.config.UiProperties;
+import org.shark.mentor.mcp.application.service.i18n.I18nService;
+import org.shark.mentor.mcp.application.service.llm.LlmServiceEnhanced;
+import org.shark.mentor.mcp.application.service.notification.DynamicToolInfoService;
+import org.shark.mentor.mcp.application.service.tool.McpToolService;
+import org.shark.mentor.mcp.application.service.tool.ToolContextCache;
+import org.shark.mentor.mcp.infraestructure.config.LlmProperties;
+import org.shark.mentor.mcp.infraestructure.config.UiProperties;
+
 
 import java.lang.reflect.Field;
 import java.util.List;

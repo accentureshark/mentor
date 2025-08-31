@@ -5,6 +5,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.shark.mentor.mcp.application.service.server.McpServerService;
+import org.shark.mentor.mcp.application.service.tool.IntelligentToolSelector;
+import org.shark.mentor.mcp.application.service.tool.McpToolOrchestrator;
+import org.shark.mentor.mcp.application.service.tool.McpToolService;
+
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;

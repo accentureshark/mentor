@@ -5,8 +5,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.shark.mentor.mcp.model.McpCapabilities;
-import org.shark.mentor.mcp.model.McpServer;
+import org.shark.mentor.mcp.application.service.capability.McpCapabilityService;
+import org.shark.mentor.mcp.application.service.logging.McpLoggingService;
+import org.shark.mentor.mcp.application.service.notification.McpNotificationService;
+import org.shark.mentor.mcp.application.service.prompt.McpPromptService;
+import org.shark.mentor.mcp.application.service.resource.McpResourceService;
+import org.shark.mentor.mcp.application.service.server.McpServerService;
+import org.shark.mentor.mcp.domain.model.McpCapabilities;
+import org.shark.mentor.mcp.domain.model.McpServer;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;

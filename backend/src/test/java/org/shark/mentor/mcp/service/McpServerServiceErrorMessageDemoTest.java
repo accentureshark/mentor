@@ -2,9 +2,11 @@ package org.shark.mentor.mcp.service;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.shark.mentor.mcp.config.McpProperties;
-import org.shark.mentor.mcp.model.McpServer;
-import org.shark.mentor.mcp.websocket.McpConfigWebSocketHandler;
+import org.shark.mentor.mcp.application.service.server.McpServerService;
+import org.shark.mentor.mcp.domain.model.McpServer;
+import org.shark.mentor.mcp.infraestructure.config.McpProperties;
+import org.shark.mentor.mcp.interfaces.websocket.McpConfigWebSocketHandler;
+
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -25,7 +27,7 @@ class McpServerServiceErrorMessageDemoTest {
     @Test
     void demonstrateImprovedErrorMessages() {
         // Test 1: Unknown host
-        McpServer unknownHost = new McpServer("unknown", "Unknown Host", "", 
+        McpServer unknownHost = new McpServer("unknown", "Unknown Host", "",
                 "http://this-host-does-not-exist.invalid", "DISCONNECTED");
         service.addServer(unknownHost);
         McpServer result1 = service.connectToServer("unknown");

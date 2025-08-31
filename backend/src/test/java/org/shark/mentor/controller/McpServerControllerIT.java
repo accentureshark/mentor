@@ -3,7 +3,8 @@ package org.shark.mentor.controller;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
 import org.junit.jupiter.api.*;
-import org.shark.mentor.mcp.model.McpServer;
+import org.shark.mentor.mcp.domain.model.McpServer;
+
 
 import java.util.UUID;
 

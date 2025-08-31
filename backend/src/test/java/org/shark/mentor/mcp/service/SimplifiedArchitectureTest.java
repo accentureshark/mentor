@@ -5,10 +5,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.shark.mentor.mcp.config.LlmProperties;
-import org.shark.mentor.mcp.model.ChatMessage;
-import org.shark.mentor.mcp.model.McpRequest;
-import org.shark.mentor.mcp.model.McpServer;
+import org.shark.mentor.mcp.domain.model.ChatMessage;
+import org.shark.mentor.mcp.domain.model.McpRequest;
+import org.shark.mentor.mcp.domain.model.McpServer;
+import org.shark.mentor.mcp.application.service.server.McpServerService;
+import org.shark.mentor.mcp.application.service.tool.McpToolOrchestrator;
+import org.shark.mentor.mcp.application.service.llm.LlmServiceEnhanced;
+import org.shark.mentor.mcp.application.service.chat.ChatServiceSimplified;
 
 import java.util.Optional;
 
