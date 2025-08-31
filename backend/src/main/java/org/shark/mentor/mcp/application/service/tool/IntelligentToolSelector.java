@@ -251,8 +251,14 @@ public class IntelligentToolSelector {
             return findToolByName(availableTools, "describe_table");
         }
         
-        // Check for query-related Spanish terms
-        if (containsAnySpanishTerm(lowerMessage, "consulta", "buscar", "filtrar", "query")) {
+        // Check for query-related Spanish terms (including data/record requests)
+        if (containsAnySpanishTerm(lowerMessage, "consulta", "buscar", "filtrar", "query", 
+                                  "registros", "datos", "información", "contenido")) {
+            return findToolByName(availableTools, "query_presto");
+        }
+        
+        // Check for specific table data request patterns
+        if (isTableDataRequestPattern(lowerMessage)) {
             return findToolByName(availableTools, "query_presto");
         }
         
@@ -266,6 +272,26 @@ public class IntelligentToolSelector {
             }
         }
         return false;
+    }
+    
+    /**
+     * Detects specific table data request patterns in Spanish translation matching
+     */
+    private boolean isTableDataRequestPattern(String lowerMessage) {
+        // "dame los registros de la tabla X"
+        if (lowerMessage.contains("dame") && lowerMessage.contains("registros") && lowerMessage.contains("tabla")) {
+            return true;
+        }
+        
+        // "muéstrame los datos de la tabla X"
+        if (lowerMessage.contains("muestra") && lowerMessage.contains("datos") && lowerMessage.contains("tabla")) {
+            return true;
+        }
+        
+        // Other data request patterns
+        return (lowerMessage.contains("tabla") && 
+                (lowerMessage.contains("registros") || lowerMessage.contains("datos") || 
+                 lowerMessage.contains("información") || lowerMessage.contains("contenido")));
     }
     
     private String findToolByName(List<Map<String, Object>> availableTools, String toolName) {
@@ -412,7 +438,7 @@ public class IntelligentToolSelector {
             }
         }
         
-        // Score intent match in tool name (medium-high priority)
+        // Score intent match in tool name (HIGH priority for QUERY intent)
         boolean intentInName = switch (intent) {
             case LIST -> containsAny(lowerToolName, "list", "get", "show");
             case SEARCH -> containsAny(lowerToolName, "search", "find", "filter", "query");
@@ -421,7 +447,9 @@ public class IntelligentToolSelector {
             case UNKNOWN -> false;
         };
         if (intentInName) {
-            score += 30; // Medium-high score for intent match in name
+            // Give higher priority to QUERY intent when it's a data request
+            int intentScore = (intent == Intent.QUERY) ? 60 : 30; // Higher score for query intent
+            score += intentScore;
         }
         
         // Bonus for specific user words appearing in tool name
@@ -495,27 +523,79 @@ public class IntelligentToolSelector {
     }
     
     private Intent detectPrimaryIntent(String message) {
-        // List/Show/Get intent
-        if (containsAny(message, "list", "listar", "show", "mostrar", "get", "todos", "all", "ver", "dame", "what", "available")) {
-            return Intent.LIST;
+        // PRIORITY 1: Data/Query intent - specific patterns for table data requests
+        if (isTableDataRequest(message)) {
+            return Intent.QUERY;
         }
         
-        // Search/Find intent
-        if (containsAny(message, "search", "buscar", "find", "encontrar", "filter", "filtrar")) {
-            return Intent.SEARCH;
-        }
-        
-        // Describe/Info intent
-        if (containsAny(message, "describe", "describir", "info", "structure", "estructura", "schema", "explain")) {
-            return Intent.DESCRIBE;
-        }
-        
-        // Query/Data intent
+        // PRIORITY 2: Query/Data intent - general query terms
         if (containsAny(message, "query", "consulta", "data", "datos", "sql")) {
             return Intent.QUERY;
         }
         
+        // PRIORITY 3: Search/Find intent
+        if (containsAny(message, "search", "buscar", "find", "encontrar", "filter", "filtrar")) {
+            return Intent.SEARCH;
+        }
+        
+        // PRIORITY 4: Describe/Info intent
+        if (containsAny(message, "describe", "describir", "info", "structure", "estructura", "schema", "explain")) {
+            return Intent.DESCRIBE;
+        }
+        
+        // PRIORITY 5: List/Show/Get intent (lowest priority to avoid conflicts)
+        if (containsAny(message, "list", "listar", "show", "mostrar", "get", "todos", "all", "ver", "dame", "what", "available")) {
+            return Intent.LIST;
+        }
+        
         return Intent.UNKNOWN;
+    }
+    
+    /**
+     * Detects if the message is specifically requesting table data/records
+     */
+    private boolean isTableDataRequest(String message) {
+        String lower = message.toLowerCase();
+        
+        // Pattern 1: "registros de la tabla X" (records from table X)
+        if (containsAny(lower, "registros") && containsAny(lower, "tabla")) {
+            return true;
+        }
+        
+        // Pattern 2: "datos de la tabla X" (data from table X)  
+        if (containsAny(lower, "datos") && containsAny(lower, "tabla")) {
+            return true;
+        }
+        
+        // Pattern 3: "información de la tabla X" (information from table X)
+        if (containsAny(lower, "información") && containsAny(lower, "tabla")) {
+            return true;
+        }
+        
+        // Pattern 4: "contenido de la tabla X" (content from table X)
+        if (containsAny(lower, "contenido") && containsAny(lower, "tabla")) {
+            return true;
+        }
+        
+        // Pattern 5: "dame X de la tabla Y" where X is data-related
+        if (containsAny(lower, "dame") && containsAny(lower, "tabla") && 
+            containsAny(lower, "registros", "datos", "información", "contenido", "todo", "toda")) {
+            return true;
+        }
+        
+        // Pattern 6: "mostrar/ver datos/registros" (show data/records)
+        if (containsAny(lower, "mostrar", "ver", "muestra", "muéstrame") && 
+            containsAny(lower, "datos", "registros", "información", "contenido")) {
+            return true;
+        }
+        
+        // Pattern 7: "necesito/quiero X de tabla Y" (I need/want X from table Y)
+        if (containsAny(lower, "necesito", "quiero") && containsAny(lower, "tabla") &&
+            containsAny(lower, "datos", "registros", "información")) {
+            return true;
+        }
+        
+        return false;
     }
     
     private String extractEntityType(String message) {
