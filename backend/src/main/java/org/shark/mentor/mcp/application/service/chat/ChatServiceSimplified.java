@@ -1,6 +1,5 @@
 package org.shark.mentor.mcp.application.service.chat;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.shark.mentor.mcp.application.service.formatting.ResponseFormatterService;
 import org.shark.mentor.mcp.application.service.llm.LlmServiceEnhanced;
