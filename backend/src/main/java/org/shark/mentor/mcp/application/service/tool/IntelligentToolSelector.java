@@ -14,7 +14,7 @@ import java.util.Map;
 
 /**
  * Intelligent tool selector that uses LLM to understand natural language requests
- * and map them to appropriate MCP tools. Now uses configurable prompts from application.yml
+ * and map them to appropriate MCP tools. Now uses dynamic keyword detection from YAML configuration.
  */
 @Slf4j
 @Service
@@ -23,6 +23,7 @@ public class IntelligentToolSelector {
 
     private final LlmService llmService;
     private final PromptProperties promptProperties;
+    private final IntentKeywordService intentKeywordService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -192,14 +193,15 @@ public class IntelligentToolSelector {
 
     private String fallbackToolSelection(String userMessage, List<Map<String, Object>> availableTools) {
         log.info("Using fallback tool selection for message: '{}'", userMessage);
-        String lower = userMessage.toLowerCase();
         
-        // Enhanced Spanish translation matching
-        String selectedTool = trySpanishTranslationMatching(lower, availableTools);
+        // First try dynamic intent detection using keywords from YAML configuration
+        String selectedTool = intentKeywordService.detectIntentAndGetTool(userMessage, availableTools);
         if (selectedTool != null) {
-            log.info("Fallback selected tool by Spanish translation: {}", selectedTool);
+            log.info("Fallback selected tool by intent detection: {}", selectedTool);
             return selectedTool;
         }
+        
+        String lower = userMessage.toLowerCase();
         
         // Try exact name match
         for (Map<String, Object> tool : availableTools) {
@@ -227,55 +229,24 @@ public class IntelligentToolSelector {
             }
         }
         
-        // Last resort: return first tool
+        // Last resort: use default tool selection order from configuration
+        List<String> defaultOrder = intentKeywordService.getDefaultToolSelectionOrder();
+        for (String preferredTool : defaultOrder) {
+            for (Map<String, Object> tool : availableTools) {
+                Object nameObj = tool.get("name");
+                if (nameObj instanceof String && preferredTool.equals((String) nameObj)) {
+                    log.info("Fallback selected tool by default order: {}", preferredTool);
+                    return preferredTool;
+                }
+            }
+        }
+        
+        // Ultimate fallback: return first tool
         String fallback = (String) availableTools.get(0).get("name");
         log.info("Fallback selected first available tool: {}", fallback);
         return fallback;
     }
     
-    private String trySpanishTranslationMatching(String lowerMessage, List<Map<String, Object>> availableTools) {
-        // Check for schema-related Spanish terms
-        if (containsAnySpanishTerm(lowerMessage, "esquemas", "cuales son los esquemas", "listar esquemas", "listame todos los esquemas", "todos los esquemas")) {
-            return findToolByName(availableTools, "list_schemas");
-        }
-        
-        // Check for table-related Spanish terms  
-        if (containsAnySpanishTerm(lowerMessage, "tablas", "que tablas hay", "mostrar tablas", "listame las tablas", "todas las tablas")) {
-            return findToolByName(availableTools, "list_tables");
-        }
-        
-        // Check for describe/structure Spanish terms
-        if (containsAnySpanishTerm(lowerMessage, "estructura", "describir", "formato", "describe")) {
-            return findToolByName(availableTools, "describe_table");
-        }
-        
-        // Check for query-related Spanish terms
-        if (containsAnySpanishTerm(lowerMessage, "consulta", "buscar", "filtrar", "query")) {
-            return findToolByName(availableTools, "query_presto");
-        }
-        
-        return null;
-    }
-    
-    private boolean containsAnySpanishTerm(String message, String... terms) {
-        for (String term : terms) {
-            if (message.contains(term.toLowerCase())) {
-                return true;
-            }
-        }
-        return false;
-    }
-    
-    private String findToolByName(List<Map<String, Object>> availableTools, String toolName) {
-        for (Map<String, Object> tool : availableTools) {
-            Object nameObj = tool.get("name");
-            if (nameObj instanceof String && toolName.equals((String) nameObj)) {
-                return (String) nameObj;
-            }
-        }
-        return null;
-    }
-
     private String buildFallbackToolSelectionPrompt(String toolsJson, String serverName) {
         return String.format("""
             You are an intelligent tool selector for an MCP (Model Context Protocol) client with advanced natural language understanding.
@@ -290,15 +261,6 @@ public class IntelligentToolSelector {
             2. **Semantic Intent Analysis**: Focus on what the user wants to accomplish, not just keyword matching
             3. **Context-Aware Selection**: Consider the relationship between user intent and tool functionality
             4. **Flexible Language Processing**: Handle variations, synonyms, and natural language patterns
-            
-            SPANISH TRANSLATION PATTERNS (understand these conceptually, don't just match keywords):
-            - "esquemas" / "cuales son los esquemas" / "listar esquemas" → concepts related to "schemas" or "list_schemas"
-            - "tablas" / "que tablas hay" / "mostrar tablas" → concepts related to "tables" or "list_tables"
-            - "estructura" / "describir" / "formato" → concepts related to "describe" or schema information
-            - "datos" / "consulta" / "buscar" / "filtrar" → concepts related to "query" or "search"
-            - "ejemplos" / "muestra" / "sample" → concepts related to "sample" or example data
-            - "repositorios" / "repos" → concepts related to "repositories"
-            - "archivos" / "contenido" → concepts related to "files" or "contents"
             
             INTELLIGENT SELECTION PROCESS:
             1. Understand the user's intent regardless of exact wording

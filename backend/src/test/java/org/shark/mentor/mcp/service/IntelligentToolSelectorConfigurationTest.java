@@ -8,6 +8,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.shark.mentor.mcp.application.service.llm.LlmService;
 import org.shark.mentor.mcp.application.service.tool.IntelligentToolSelector;
 import org.shark.mentor.mcp.infraestructure.config.PromptProperties;
+import org.shark.mentor.mcp.application.service.tool.IntentKeywordService;
 import org.shark.mentor.mcp.domain.model.McpServer;
 
 
@@ -25,6 +26,9 @@ class IntelligentToolSelectorConfigurationTest {
     
     @Mock
     private PromptProperties promptProperties;
+    
+    @Mock
+    private IntentKeywordService intentKeywordService;
 
     private IntelligentToolSelector intelligentToolSelector;
     private McpServer testServer;
@@ -32,7 +36,7 @@ class IntelligentToolSelectorConfigurationTest {
 
     @BeforeEach
     void setUp() {
-        intelligentToolSelector = new IntelligentToolSelector(llmService, promptProperties);
+        intelligentToolSelector = new IntelligentToolSelector(llmService, promptProperties, intentKeywordService);
         testServer = new McpServer("test-server", "Data Lake Server", "Data Lake MCP Server", "http://localhost:8080", "active");
         
         // Setup data lake tools similar to the problem statement

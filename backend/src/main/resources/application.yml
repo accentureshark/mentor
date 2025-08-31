@@ -176,6 +176,194 @@ ui:
       indent_output: true
     default-property-inclusion: non_null
 
+# Intent Keywords Configuration for dynamic tool selection
+intent:
+  keywords:
+    intents:
+      LIST_SCHEMAS:
+        keywords:
+          spanish:
+            - "esquemas"
+            - "cuales son los esquemas"
+            - "listar esquemas"
+            - "listame todos los esquemas"
+            - "todos los esquemas"
+            - "mostrar esquemas"
+            - "ver esquemas"
+          english:
+            - "schemas"
+            - "list schemas"
+            - "show schemas"
+            - "database schemas"
+        toolNames:
+          - "list_schemas"
+        description: "Intent to list all available database schemas"
+
+      LIST_TABLES:
+        keywords:
+          spanish:
+            - "tablas"
+            - "que tablas hay"
+            - "mostrar tablas"
+            - "listame las tablas"
+            - "todas las tablas"
+            - "ver tablas"
+            - "listar tablas"
+          english:
+            - "tables"
+            - "list tables"
+            - "show tables"
+            - "what tables"
+            - "available tables"
+        toolNames:
+          - "list_tables"
+        description: "Intent to list all available tables"
+
+      DESCRIBE:
+        keywords:
+          spanish:
+            - "estructura"
+            - "describir"
+            - "formato"
+            - "describe"
+            - "estructura de la tabla"
+            - "mostrar estructura"
+            - "columnas"
+            - "campos"
+          english:
+            - "describe"
+            - "structure"
+            - "schema"
+            - "columns"
+            - "fields"
+            - "table structure"
+            - "describe table"
+        toolNames:
+          - "describe_table"
+        description: "Intent to describe the structure of a table or entity"
+
+      QUERY:
+        keywords:
+          spanish:
+            - "consulta"
+            - "buscar"
+            - "filtrar"
+            - "query"
+            - "datos"
+            - "información"
+            - "dame"
+            - "mostrar datos"
+            - "obtener"
+          english:
+            - "query"
+            - "search"
+            - "filter"
+            - "data"
+            - "information"
+            - "get"
+            - "find"
+            - "show data"
+            - "retrieve"
+        toolNames:
+          - "query_presto"
+          - "query_data"
+        description: "Intent to query or search for data"
+
+      SAMPLE:
+        keywords:
+          spanish:
+            - "ejemplos"
+            - "muestra"
+            - "sample"
+            - "filas"
+            - "registros"
+            - "datos de ejemplo"
+            - "muestra de datos"
+          english:
+            - "sample"
+            - "examples"
+            - "rows"
+            - "records"
+            - "sample data"
+            - "example data"
+        toolNames:
+          - "sample_data"
+        description: "Intent to get sample or example data"
+
+      SEARCH:
+        keywords:
+          spanish:
+            - "buscar tablas"
+            - "encontrar tablas"
+            - "buscar"
+            - "relacionadas"
+            - "contienen"
+            - "palabra clave"
+          english:
+            - "search tables"
+            - "find tables"
+            - "search"
+            - "related"
+            - "contains"
+            - "keyword"
+        toolNames:
+          - "search_tables"
+        description: "Intent to search for tables or entities by keyword"
+
+      REPOSITORIES:
+        keywords:
+          spanish:
+            - "repositorios"
+            - "repos"
+            - "proyectos"
+            - "código"
+          english:
+            - "repositories"
+            - "repos"
+            - "projects"
+            - "code"
+        toolNames:
+          - "list_repositories"
+          - "search_repositories"
+        description: "Intent to work with code repositories"
+
+      FILES:
+        keywords:
+          spanish:
+            - "archivos"
+            - "contenido"
+            - "ficheros"
+            - "documentos"
+          english:
+            - "files"
+            - "contents"
+            - "documents"
+        toolNames:
+          - "get_file_contents"
+          - "list_files"
+        description: "Intent to work with files and content"
+
+    patterns:
+      schema_response:
+        keywords:
+          spanish:
+            - "listame"
+            - "esquemas"
+          english:
+            - "list"
+            - "schema"
+        combined_checks:
+          - "information_schema"
+        description: "Pattern to detect schema listing responses"
+
+    fallback:
+      default_tool_selection_order:
+        - "query_data"
+        - "list_tables"
+        - "describe_table"
+        - "sample_data"
+        - "search_tables"
+
 
 spring:
   application:

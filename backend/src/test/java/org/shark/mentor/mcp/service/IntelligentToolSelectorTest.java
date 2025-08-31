@@ -9,6 +9,7 @@ import org.shark.mentor.mcp.application.service.llm.LlmService;
 import org.shark.mentor.mcp.application.service.tool.IntelligentToolSelector;
 import org.shark.mentor.mcp.domain.model.McpServer;
 import org.shark.mentor.mcp.infraestructure.config.PromptProperties;
+import org.shark.mentor.mcp.application.service.tool.IntentKeywordService;
 
 
 import java.util.List;
@@ -25,6 +26,9 @@ class IntelligentToolSelectorTest {
     
     @Mock
     private PromptProperties promptProperties;
+    
+    @Mock
+    private IntentKeywordService intentKeywordService;
 
     private IntelligentToolSelector intelligentToolSelector;
     private McpServer testServer;
@@ -38,7 +42,7 @@ class IntelligentToolSelectorTest {
         lenient().when(promptProperties.buildTranslationPatterns()).thenReturn("");
         lenient().when(promptProperties.buildTranslationMappings()).thenReturn("");
         
-        intelligentToolSelector = new IntelligentToolSelector(llmService, promptProperties);
+        intelligentToolSelector = new IntelligentToolSelector(llmService, promptProperties, intentKeywordService);
         testServer = new McpServer("test-server", "Data Lake Server", "Data Lake MCP Server", "http://localhost:8080", "active");
         
         // Setup data lake tools similar to the problem statement

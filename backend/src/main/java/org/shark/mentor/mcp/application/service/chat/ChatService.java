@@ -11,6 +11,8 @@ import org.shark.mentor.mcp.application.service.server.McpServerService;
 import org.shark.mentor.mcp.application.service.tool.IntelligentToolSelector;
 import org.shark.mentor.mcp.application.service.tool.McpToolOrchestrator;
 import org.shark.mentor.mcp.application.service.tool.McpToolService;
+import org.shark.mentor.mcp.application.service.tool.IntentKeywordService;
+import org.shark.mentor.mcp.infraestructure.config.IntentKeywordProperties;
 import org.shark.mentor.mcp.domain.model.ChatMessage;
 import org.shark.mentor.mcp.domain.model.McpRequest;
 import org.shark.mentor.mcp.domain.model.McpServer;
@@ -38,6 +40,7 @@ public class ChatService {
     private final McpToolOrchestrator mcpToolOrchestrator;
     private final LlmServiceEnhanced enhancedLlmService;
     private final IntelligentToolSelector intelligentToolSelector;
+    private final IntentKeywordService intentKeywordService;
     private final boolean useSimplifiedImplementation;
 
     @Autowired
@@ -47,11 +50,13 @@ public class ChatService {
                        Optional<LlmServiceEnhanced> enhancedLlmService,
                        Optional<IntelligentToolSelector> intelligentToolSelector,
                        McpToolService mcpToolService,
-                       I18nService i18nService) {
+                       I18nService i18nService,
+                       IntentKeywordService intentKeywordService) {
         this.mcpServerService = mcpServerService;
         this.llmService = llmService;
         this.mcpToolService = mcpToolService;
         this.i18nService = i18nService;
+        this.intentKeywordService = intentKeywordService;
         this.mcpToolOrchestrator = mcpToolOrchestrator.orElse(null);
         this.enhancedLlmService = enhancedLlmService.orElse(null);
         this.intelligentToolSelector = intelligentToolSelector.orElse(null);
@@ -71,13 +76,19 @@ public class ChatService {
                       Optional<LlmServiceEnhanced> enhancedLlmService,
                       McpToolService mcpToolService) {
         this(mcpServerService, llmService, mcpToolOrchestrator, enhancedLlmService, 
-             Optional.empty(), mcpToolService, createDefaultI18nService());
+             Optional.empty(), mcpToolService, createDefaultI18nService(), createDefaultIntentKeywordService());
     }
     
     private static I18nService createDefaultI18nService() {
         UiProperties props = new UiProperties();
         props.setLocale("en");
         return new I18nService(props);
+    }
+    
+    private static IntentKeywordService createDefaultIntentKeywordService() {
+        // Create a basic instance for backward compatibility in tests
+        IntentKeywordProperties properties = new IntentKeywordProperties();
+        return new IntentKeywordService(properties);
     }
 
     public List<ChatMessage> getConversation(String conversationId) {
@@ -284,12 +295,10 @@ public class ChatService {
     }
 
     private boolean isSchemaResponse(JsonNode jsonNode, String userMessage) {
-        String jsonString = jsonNode.toString().toLowerCase();
-        String userQuery = userMessage != null ? userMessage.toLowerCase() : "";
+        String jsonString = jsonNode.toString();
         
-        return (userQuery.contains("list") && userQuery.contains("schema")) ||
-               userQuery.contains("listame") && userQuery.contains("esquemas") ||
-               jsonString.contains("schema") && jsonString.contains("information_schema");
+        // Use the intent keyword service to detect schema response patterns
+        return intentKeywordService.isSchemaResponse(jsonString, userMessage);
     }
 
     private String formatSchemaResponse(JsonNode jsonNode) {
