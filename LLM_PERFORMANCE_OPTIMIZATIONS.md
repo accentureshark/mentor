@@ -4,7 +4,33 @@
 
 Este documento detalla las optimizaciones implementadas para acelerar las respuestas del LLM y mejorar el rendimiento general de la aplicación.
 
-## Latest Optimization: Model Speed Upgrade (NEW)
+## Latest Optimization: Real-Time Streaming Responses (NEW)
+
+### **Streaming Implementation for Dynamic User Experience**
+
+**Previous**: Respuestas bloqueantes que requerían esperar la respuesta completa
+**Current**: Streaming en tiempo real usando Server-Sent Events (SSE)
+
+**Impact**: 
+- **Respuestas dinámicas** que aparecen en tiempo real mientras se generan
+- **Reducción significativa en la percepción de delay** para el usuario
+- **Mejor experiencia de usuario** con feedback inmediato
+- **Soporte tanto para Ollama como para futuros proveedores LLM**
+- **Fallback automático** a respuestas regulares si streaming falla
+
+**Configuración**:
+```yaml
+llm:
+  performance:
+    enable-streaming: true  # Habilitar respuestas streaming
+    streaming-timeout-millis: 30000  # Timeout para streaming (30 segundos)
+```
+
+**Endpoints**:
+- `/api/mcp/chat/stream` - Nuevo endpoint para respuestas streaming
+- `/api/mcp/chat/send` - Endpoint tradicional mantiene compatibilidad
+
+## Model Speed Upgrade
 
 ### **Model Change: Gemma 2 2B for 40-60% Speed Improvement**
 
@@ -185,15 +211,23 @@ mvn test -Dtest=LlmServiceEnhancedPerformanceTest
 ### Beneficios a Largo Plazo:
 1. **Escalabilidad mejorada** con gestión eficiente de recursos
 2. **Monitoreo en tiempo real** de performance
-3. **Base sólida** para futuras optimizaciones como streaming responses
+3. **Base sólida** para optimizaciones avanzadas como streaming responses ✅
 
 ## Próximas Optimizaciones Recomendadas
 
-1. **Streaming Responses:** Implementar respuestas en tiempo real
+1. ✅ **Streaming Responses:** ~~Implementar respuestas en tiempo real~~ **IMPLEMENTADO**
 2. **Request Batching:** Agrupar múltiples consultas en una sola llamada
 3. **Model Warm-up:** Pre-cargar modelos para reducir latencia de cold start
 4. **Context Compression:** Comprimir contextos largos sin perder información relevante
 5. **Async Processing:** Procesamiento asíncrono completo para operaciones paralelas
+
+## Optimizaciones Implementadas
+
+### ✅ Streaming Responses (NUEVO)
+**Estado**: Implementado y funcional
+**Tecnología**: Server-Sent Events (SSE) + Langchain4j StreamingChatLanguageModel
+**Beneficios**: Respuestas dinámicas en tiempo real, mejor UX, reducción de delay percibido
+**Testing**: Incluye tests unitarios e integración
 
 ## Compatibilidad
 

@@ -19,6 +19,8 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
   const [inputMessage, setInputMessage] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [streaming, setStreaming] = useState(false);
+  const [streamingSupported, setStreamingSupported] = useState(true);
   const [tools, setTools] = useState([]);
   const [infoCollapsed, setInfoCollapsed] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
@@ -76,6 +78,17 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
         setTools([]);
       });
     loadConversation();
+    
+    // Check streaming support
+    chatService.checkStreamingSupport(BACKEND_URL)
+      .then((supported) => {
+        setStreamingSupported(supported);
+        console.log(`[ChatInterface] Streaming supported: ${supported}`);
+      })
+      .catch((err) => {
+        console.warn(`[ChatInterface] Could not check streaming support:`, err);
+        setStreamingSupported(false);
+      });
   }, [selectedServer, conversationId]);
 
   useEffect(() => {
@@ -135,7 +148,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
   };
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim() || !selectedServer || !conversationId || selectedServer.status !== 'CONNECTED' || !toolsAcknowledged || loading) return;
+    if (!inputMessage.trim() || !selectedServer || !conversationId || selectedServer.status !== 'CONNECTED' || !toolsAcknowledged || loading || streaming) return;
 
     setSuggestions([]);
     setLoading(true);
@@ -156,8 +169,91 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
       }
     };
 
+    const sendStreamingMessage = async (userMessage) => {
+      // Add user message immediately
+      setMessages(prev => [...prev, userMessage]);
+      
+      // Create placeholder assistant message for streaming
+      const assistantMessage = {
+        id: Date.now().toString() + '_assistant',
+        role: 'ASSISTANT',
+        content: '',
+        timestamp: Date.now(),
+        serverId: selectedServer.id,
+        streaming: true,
+      };
+      
+      setMessages(prev => [...prev, assistantMessage]);
+      setStreaming(true);
+      
+      try {
+        await chatService.sendStreamingMessage(
+          BACKEND_URL,
+          selectedServer.id,
+          inputMessage,
+          conversationId,
+          // onToken callback
+          (token) => {
+            setMessages(prev => prev.map(msg => 
+              msg.id === assistantMessage.id 
+                ? { ...msg, content: msg.content + token }
+                : msg
+            ));
+          },
+          // onComplete callback
+          (fullMessage) => {
+            setMessages(prev => prev.map(msg => 
+              msg.id === assistantMessage.id 
+                ? { ...msg, content: fullMessage, streaming: false }
+                : msg
+            ));
+            setStreaming(false);
+            setLoading(false);
+          },
+          // onError callback
+          (error) => {
+            console.error('Streaming error:', error);
+            // Remove the placeholder message and fallback to regular message
+            setMessages(prev => prev.filter(msg => msg.id !== assistantMessage.id));
+            setStreaming(false);
+            // Fallback to regular messaging
+            fallbackToRegularMessage(userMessage);
+          }
+        );
+      } catch (error) {
+        console.error('Streaming setup error:', error);
+        // Remove the placeholder message and fallback to regular message
+        setMessages(prev => prev.filter(msg => msg.id !== assistantMessage.id));
+        setStreaming(false);
+        fallbackToRegularMessage(userMessage);
+      }
+    };
+
+    const fallbackToRegularMessage = async (userMessage) => {
+      try {
+        const response = await chatService.sendMessage(
+          BACKEND_URL,
+          selectedServer.id,
+          inputMessage,
+          conversationId
+        );
+        setMessages(prev => [...prev, response]);
+      } catch (error) {
+        console.error('Regular message error:', error);
+        toast.current?.show({
+          severity: 'error',
+          summary: 'Error',
+          detail: 'Error sending message',
+          life: 3000,
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
     try {
       if (editingIndex !== null) {
+        // For editing, use the original sequential approach
         await chatService.clearConversation(BACKEND_URL, conversationId);
         const priorUserMessages = messages.filter(m => m.role === 'USER');
         const allUserMessages = [
@@ -173,6 +269,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
         setMessages([]);
         await sendSequential(allUserMessages);
         setEditingIndex(null);
+        setLoading(false);
       } else {
         const userMessage = {
           id: Date.now().toString(),
@@ -182,14 +279,13 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
           serverId: selectedServer.id,
         };
 
-        setMessages(prev => [...prev, userMessage]);
-        const response = await chatService.sendMessage(
-          BACKEND_URL,
-          selectedServer.id,
-          inputMessage,
-          conversationId
-        );
-        setMessages(prev => [...prev, response]);
+        // Try streaming first if supported, otherwise fallback to regular
+        if (streamingSupported) {
+          await sendStreamingMessage(userMessage);
+        } else {
+          setMessages(prev => [...prev, userMessage]);
+          await fallbackToRegularMessage(userMessage);
+        }
       }
       setInputMessage('');
     } catch (error) {
@@ -199,8 +295,8 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
         detail: 'Error sending message',
         life: 3000,
       });
-    } finally {
       setLoading(false);
+      setStreaming(false);
     }
   };
 
@@ -300,24 +396,40 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
               {isUser ? (
                 message.content
               ) : (
-                <ReactMarkdown
-                  components={{
-                    // Customize how markdown elements are rendered
-                    p: ({children}) => <p style={{margin: '0.5em 0'}}>{children}</p>,
-                    h1: ({children}) => <h3 style={{color: '#2196f3', margin: '1em 0 0.5em 0'}}>{children}</h3>,
-                    h2: ({children}) => <h4 style={{color: '#2196f3', margin: '0.8em 0 0.4em 0'}}>{children}</h4>,
-                    h3: ({children}) => <h5 style={{color: '#2196f3', margin: '0.6em 0 0.3em 0'}}>{children}</h5>,
-                    ul: ({children}) => <ul style={{margin: '0.5em 0', paddingLeft: '1.5em'}}>{children}</ul>,
-                    ol: ({children}) => <ol style={{margin: '0.5em 0', paddingLeft: '1.5em'}}>{children}</ol>,
-                    li: ({children}) => <li style={{margin: '0.2em 0'}}>{children}</li>,
-                    strong: ({children}) => <strong style={{color: '#1976d2'}}>{children}</strong>,
-                    em: ({children}) => <em style={{color: '#666'}}>{children}</em>,
-                    code: ({children}) => <code style={{backgroundColor: '#f5f5f5', padding: '0.2em 0.4em', borderRadius: '3px'}}>{children}</code>,
-                    pre: ({children}) => <pre style={{backgroundColor: '#f5f5f5', padding: '1em', borderRadius: '5px', overflow: 'auto'}}>{children}</pre>
-                  }}
-                >
-                  {message.content}
-                </ReactMarkdown>
+                <>
+                  <ReactMarkdown
+                    components={{
+                      // Customize how markdown elements are rendered
+                      p: ({children}) => <p style={{margin: '0.5em 0'}}>{children}</p>,
+                      h1: ({children}) => <h3 style={{color: '#2196f3', margin: '1em 0 0.5em 0'}}>{children}</h3>,
+                      h2: ({children}) => <h4 style={{color: '#2196f3', margin: '0.8em 0 0.4em 0'}}>{children}</h4>,
+                      h3: ({children}) => <h5 style={{color: '#2196f3', margin: '0.6em 0 0.3em 0'}}>{children}</h5>,
+                      ul: ({children}) => <ul style={{margin: '0.5em 0', paddingLeft: '1.5em'}}>{children}</ul>,
+                      ol: ({children}) => <ol style={{margin: '0.5em 0', paddingLeft: '1.5em'}}>{children}</ol>,
+                      li: ({children}) => <li style={{margin: '0.2em 0'}}>{children}</li>,
+                      strong: ({children}) => <strong style={{color: '#1976d2'}}>{children}</strong>,
+                      em: ({children}) => <em style={{color: '#666'}}>{children}</em>,
+                      code: ({children}) => <code style={{backgroundColor: '#f5f5f5', padding: '0.2em 0.4em', borderRadius: '3px'}}>{children}</code>,
+                      pre: ({children}) => <pre style={{backgroundColor: '#f5f5f5', padding: '1em', borderRadius: '5px', overflow: 'auto'}}>{children}</pre>
+                    }}
+                  >
+                    {message.content || (message.streaming ? 'Generating response...' : '')}
+                  </ReactMarkdown>
+                  {message.streaming && (
+                    <div className="chat-streaming-indicator" style={{ 
+                      display: 'inline-flex', 
+                      alignItems: 'center', 
+                      color: '#666', 
+                      fontSize: '0.9em', 
+                      marginTop: '0.5em' 
+                    }}>
+                      <span style={{ marginRight: '0.5em' }}>Streaming</span>
+                      <div className="chat-typing-indicator" style={{ transform: 'scale(0.7)' }}>
+                        <span></span><span></span><span></span>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -437,7 +549,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
                   onKeyDown={handleKeyPress}
                   placeholder={`Type your message to ${selectedServer.name}... (Enter to send, Shift+Enter for new line)`}
                   className="chat-input-field"
-                  disabled={loading || !conversationId || selectedServer.status !== 'CONNECTED' || !toolsAcknowledged}
+                  disabled={loading || streaming || !conversationId || selectedServer.status !== 'CONNECTED' || !toolsAcknowledged}
                   rows={3}
                   autoResize
                   tools={tools}
@@ -445,7 +557,7 @@ export const ChatInterface = ({ selectedServer, toolsAcknowledged = false }) => 
               <Button
                   icon="pi pi-send"
                   onClick={handleSendMessage}
-                  disabled={!inputMessage.trim() || loading || !conversationId || selectedServer.status !== 'CONNECTED' || !toolsAcknowledged}
+                  disabled={!inputMessage.trim() || loading || streaming || !conversationId || selectedServer.status !== 'CONNECTED' || !toolsAcknowledged}
                   className="chat-send-button"
               />
             </div>
