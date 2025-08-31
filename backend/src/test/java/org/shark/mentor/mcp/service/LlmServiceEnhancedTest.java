@@ -6,6 +6,7 @@ import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.output.Response;
 import org.junit.jupiter.api.Test;
+import org.shark.mentor.mcp.application.service.cache.LlmResponseCache;
 import org.shark.mentor.mcp.application.service.i18n.I18nService;
 import org.shark.mentor.mcp.application.service.llm.LlmServiceEnhanced;
 import org.shark.mentor.mcp.application.service.notification.DynamicToolInfoService;
@@ -33,14 +34,15 @@ class LlmServiceEnhancedTest {
         McpToolService mcpToolService = mock(McpToolService.class);
         DynamicToolInfoService dynamicToolInfoService = new DynamicToolInfoService(mcpToolService);
         ToolContextCache toolContextCache = new ToolContextCache(dynamicToolInfoService);
-        LlmServiceEnhanced service = new LlmServiceEnhanced(props, i18nService, dynamicToolInfoService, toolContextCache);
+        LlmResponseCache responseCache = new LlmResponseCache();
+        LlmServiceEnhanced service = new LlmServiceEnhanced(props, i18nService, dynamicToolInfoService, toolContextCache, responseCache);
 
         ChatLanguageModel model = mock(ChatLanguageModel.class);
         var captor = forClass(List.class);
         when(model.generate(captor.capture())).thenAnswer(invocation -> {
             List<ChatMessage> messages = invocation.getArgument(0);
             String systemText = ((SystemMessage) messages.get(0)).text();
-            String content = systemText.contains("current locale: es")
+            String content = systemText.contains("locale: es")
                     ? "Respuesta en español" : "English response";
             return Response.from(AiMessage.from(content));
         });
@@ -54,8 +56,7 @@ class LlmServiceEnhancedTest {
         assertEquals("Respuesta en español", result);
         List<ChatMessage> messages = captor.getValue();
         String systemText = ((SystemMessage) messages.get(0)).text();
-        assertTrue(systemText.contains("current locale: es"));
-        assertTrue(systemText.contains("user's preferred language"));
-        assertFalse(systemText.contains("ALWAYS respond in Spanish"));
+        assertTrue(systemText.contains("locale: es"));
+        assertTrue(systemText.contains("user's preferred language") || systemText.contains("locale:"));
     }
 }

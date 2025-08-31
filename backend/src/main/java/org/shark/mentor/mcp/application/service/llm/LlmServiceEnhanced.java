@@ -7,6 +7,7 @@ import dev.langchain4j.memory.ChatMemory;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import lombok.extern.slf4j.Slf4j;
+import org.shark.mentor.mcp.application.service.cache.LlmResponseCache;
 import org.shark.mentor.mcp.application.service.i18n.I18nService;
 import org.shark.mentor.mcp.application.service.notification.DynamicToolInfoService;
 import org.shark.mentor.mcp.application.service.tool.ToolContextCache;
@@ -19,11 +20,14 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.Map;
 
 /**
  * Enhanced LLM service using langchain4j best practices for conversation management
- * and MCP-compliant response generation
+ * and MCP-compliant response generation with performance optimizations
  */
 @Slf4j
 @Service("llmServiceEnhanced")
@@ -34,32 +38,54 @@ public class LlmServiceEnhanced implements LlmService {
     private final I18nService i18nService;
     private final DynamicToolInfoService dynamicToolInfoService;
     private final ToolContextCache toolContextCache;
+    private final LlmResponseCache responseCache;
     private ChatLanguageModel chatModel;
-    private final Map<String, ChatMemory> conversationMemories = new ConcurrentHashMap<>();
+    private final Map<String, ConversationMemoryEntry> conversationMemories = new ConcurrentHashMap<>();
+    private final ScheduledExecutorService memoryCleanupExecutor = Executors.newSingleThreadScheduledExecutor();
     
     // Primary constructor
     @Autowired
     public LlmServiceEnhanced(LlmProperties props, I18nService i18nService, 
                              DynamicToolInfoService dynamicToolInfoService,
-                             ToolContextCache toolContextCache) {
+                             ToolContextCache toolContextCache,
+                             LlmResponseCache responseCache) {
         this.props = props;
         this.i18nService = i18nService;
         this.dynamicToolInfoService = dynamicToolInfoService;
         this.toolContextCache = toolContextCache;
+        this.responseCache = responseCache;
+        
+        // Setup conversation memory cleanup if enabled
+        if (props.getPerformance().isEnableConversationMemoryCleanup()) {
+            memoryCleanupExecutor.scheduleAtFixedRate(
+                this::cleanupExpiredConversations, 
+                10, // Initial delay
+                10, // Period
+                TimeUnit.MINUTES
+            );
+            log.info("Conversation memory cleanup enabled with TTL: {} minutes", 
+                    props.getPerformance().getConversationMemoryTtlMinutes());
+        }
     }
 
     @jakarta.annotation.PostConstruct
     public void initModel() {
         log.info("Initializing enhanced LLM model with provider: {}", props.getProvider());
+        
+        // Use optimized timeout for faster responses if configured
+        int timeoutMinutes = props.getPerformance().getFastTimeoutSeconds() > 0 ? 
+            props.getPerformance().getFastTimeoutSeconds() / 60 : 
+            props.getModelConfig().getTimeoutMinutes();
+            
         chatModel = LlmFactory.createChatModel(
                 props.getProvider(),
                 props.getModel(),
                 props.getApi().getBaseUrl(),
                 props.getApi().getKey(),
                 props.getModelConfig().getTemperature(),
-                props.getModelConfig().getTimeoutMinutes()
+                timeoutMinutes
         );
-        log.info("Enhanced LLM model initialized successfully");
+        log.info("Enhanced LLM model initialized successfully with optimized timeout: {}min", timeoutMinutes);
     }
 
     @Override
@@ -79,10 +105,24 @@ public class LlmServiceEnhanced implements LlmService {
      */
     public String generateWithMemory(String conversationId, String question, String context, McpServer server) {
         try {
+            // Check cache first if enabled
+            if (props.getPerformance().isEnableCaching()) {
+                String cachedResponse = responseCache.get(question, context);
+                if (cachedResponse != null) {
+                    log.debug("Returning cached response for conversation {}", conversationId);
+                    return cachedResponse;
+                }
+            }
+            
             List<ChatMessage> messages = buildMessages(question, context, server);
             
             // Use langchain4j to generate response with proper context management
             String response = chatModel.generate(messages).content().text();
+            
+            // Cache the response if enabled
+            if (props.getPerformance().isEnableCaching() && response != null && !response.trim().isEmpty()) {
+                responseCache.put(question, context, response);
+            }
             
             log.debug("Generated response for conversation {}: {}", conversationId, response);
             return response;
@@ -94,11 +134,15 @@ public class LlmServiceEnhanced implements LlmService {
     }
 
     /**
-     * Get or create conversation memory for a specific conversation
+     * Get or create conversation memory for a specific conversation with TTL tracking
      */
     private ChatMemory getConversationMemory(String conversationId) {
-        return conversationMemories.computeIfAbsent(conversationId, 
-            k -> MessageWindowChatMemory.withMaxMessages(20));
+        return conversationMemories.computeIfAbsent(conversationId, k -> {
+            long expirationTime = System.currentTimeMillis() + 
+                TimeUnit.MINUTES.toMillis(props.getPerformance().getConversationMemoryTtlMinutes());
+            ChatMemory memory = MessageWindowChatMemory.withMaxMessages(20);
+            return new ConversationMemoryEntry(memory, expirationTime);
+        }).memory;
     }
 
     /**
@@ -107,6 +151,38 @@ public class LlmServiceEnhanced implements LlmService {
     public void clearConversation(String conversationId) {
         conversationMemories.remove(conversationId);
         log.info("Cleared conversation memory for: {}", conversationId);
+    }
+
+    /**
+     * Clean up expired conversation memories to prevent memory leaks
+     */
+    private void cleanupExpiredConversations() {
+        long currentTime = System.currentTimeMillis();
+        int initialSize = conversationMemories.size();
+        
+        conversationMemories.entrySet().removeIf(entry -> 
+            entry.getValue().expirationTime < currentTime);
+        
+        int finalSize = conversationMemories.size();
+        
+        // Also enforce maximum conversation limit
+        if (finalSize > props.getPerformance().getMaxConversationsInMemory()) {
+            // Remove oldest conversations
+            List<String> conversationsToRemove = conversationMemories.entrySet().stream()
+                .sorted(Map.Entry.<String, ConversationMemoryEntry>comparingByValue(
+                    (a, b) -> Long.compare(a.expirationTime, b.expirationTime)))
+                .limit(finalSize - props.getPerformance().getMaxConversationsInMemory())
+                .map(Map.Entry::getKey)
+                .toList();
+            
+            conversationsToRemove.forEach(conversationMemories::remove);
+            finalSize = conversationMemories.size();
+        }
+        
+        if (initialSize != finalSize) {
+            log.debug("Conversation memory cleanup: removed {} expired/excess conversations, {} remaining", 
+                     initialSize - finalSize, finalSize);
+        }
     }
 
     /**
@@ -153,8 +229,8 @@ public class LlmServiceEnhanced implements LlmService {
             // Use comprehensive context with caching to reduce LLM calls
             return toolContextCache.buildComprehensivePrompt(server, context, question);
         } else {
-            // Fallback to basic context when no server is available
-            StringBuilder prompt = new StringBuilder();
+            // Fallback to basic context when no server is available - optimized for performance
+            StringBuilder prompt = new StringBuilder(512); // Pre-allocate capacity
             prompt.append(i18nService.getMessage("context.mcp")).append(":\n");
             prompt.append(context);
             prompt.append("\n\n").append(i18nService.getMessage("instructions.formatting")).append(":\n");
@@ -170,29 +246,48 @@ public class LlmServiceEnhanced implements LlmService {
 
     /**
      * Build MCP-compliant system prompt that ensures localized responses and focuses on tool understanding
+     * Optimized to be more concise for faster processing
      */
     private String buildSystemPrompt() {
         String currentLocale = i18nService.getCurrentLocale().toString();
         
-        return "You are a helpful assistant that works with MCP (Model Context Protocol) servers.\n" +
-            "You specialize in understanding and executing tool requests across different domains.\n\n" +
-            "Important guidelines:\n" +
-            "1. Respond ONLY using information provided in the context of MCP servers\n" +
-            "2. Do not infer or add information that is not explicitly indicated in the context\n" +
-            "3. If the context is insufficient to answer the question, clearly state what information is missing\n" +
-            "4. Be precise and factual in your responses\n" +
-            "5. When relevant, mention which MCP server provided the information\n" +
-            "6. Respond in the user's preferred language (current locale: " + currentLocale + ")\n" +
-            "7. Focus on helping users understand the capabilities and results of MCP tools\n\n" +
-            "RESPONSE FORMAT:\n" +
-            "- Use clear titles and subtitles with appropriate emojis\n" +
-            "- Follow any specific formatting instructions provided in the context\n" +
-            "- Organize information in numbered or bulleted lists\n" +
-            "- Use proper spacing between sections\n" +
-            "- If there are multiple results, list them clearly\n" +
-            "- Use markdown formatting for better readability\n\n" +
-            "Always maintain accuracy and transparency about the limitations of the available context.\n" +
-            "All responses must be well formatted and in the user's preferred language.\n" +
-            "Adapt the format based on the type of MCP server and tool being used.";
+        // Optimized shorter prompt for better performance
+        return "You are a helpful MCP assistant. " +
+            "RULES: 1) Use ONLY provided context 2) No inference 3) State missing info clearly " +
+            "4) Respond in locale: " + currentLocale + " 5) Mention MCP server when relevant\n" +
+            "FORMAT: Clear titles with emojis, markdown lists, proper spacing. " +
+            "Be accurate and transparent about context limitations.";
+    }
+    
+    /**
+     * Get cache statistics for monitoring
+     */
+    public Map<String, Object> getCacheStats() {
+        Map<String, Object> stats = new ConcurrentHashMap<>();
+        stats.put("responseCacheSize", responseCache.size());
+        stats.put("conversationMemoriesCount", conversationMemories.size());
+        stats.put("modelCacheSize", LlmFactory.getCacheSize());
+        return stats;
+    }
+    
+    /**
+     * Clear all caches (useful for testing or configuration changes)
+     */
+    public void clearAllCaches() {
+        if (props.getPerformance().isEnableCaching()) {
+            responseCache.clear();
+        }
+        conversationMemories.clear();
+        log.info("Cleared all LLM caches");
+    }
+    
+    private static class ConversationMemoryEntry {
+        final ChatMemory memory;
+        final long expirationTime;
+        
+        ConversationMemoryEntry(ChatMemory memory, long expirationTime) {
+            this.memory = memory;
+            this.expirationTime = expirationTime;
+        }
     }
 }
