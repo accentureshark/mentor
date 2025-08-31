@@ -98,12 +98,26 @@ public class ResponseFormatterService {
     }
 
     private boolean isSchemaResponse(JsonNode jsonNode, String userMessage) {
-        String jsonString = jsonNode.toString().toLowerCase();
-        String userQuery = userMessage != null ? userMessage.toLowerCase() : "";
+        // Enhanced detection for nested result.schemas structure (e.g., Polenta MCP Server)
+        if (jsonNode != null) {
+            if (jsonNode.has("result") && jsonNode.get("result").has("schemas")) {
+                return true;
+            }
+            String jsonString = jsonNode.toString().toLowerCase();
+            if (jsonString.contains("schema") && jsonString.contains("information_schema")) {
+                return true;
+            }
+        }
         
-        return (userQuery.contains("schema") || userQuery.contains("esquema") || 
-                userQuery.contains("tabla") || userQuery.contains("table")) &&
-               (jsonString.contains("schema") || jsonString.contains("table"));
+        if (userMessage != null) {
+            String userQuery = userMessage.toLowerCase();
+            // Be more specific about schema requests vs table requests
+            return (userQuery.contains("schema") || userQuery.contains("esquema")) &&
+                   (userQuery.contains("list") || userQuery.contains("show") || 
+                    userQuery.contains("get") || userQuery.contains("listame"));
+        }
+        
+        return false;
     }
 
     private boolean isFileResponse(JsonNode jsonNode, String userMessage) {
@@ -118,27 +132,38 @@ public class ResponseFormatterService {
 
     private String formatJsonSchemaResponse(JsonNode jsonNode, McpServer server) {
         StringBuilder response = new StringBuilder();
-        response.append(formatHeader(server, "🏗️ Schemas Disponibles"));
+        response.append(formatHeader(server, "🗃️ Schemas Disponibles"));
         
-        if (jsonNode.has("schemas") && jsonNode.get("schemas").isArray()) {
-            for (JsonNode schema : jsonNode.get("schemas")) {
-                String schemaName = schema.has("name") ? schema.get("name").asText() : "unknown";
-                response.append(formatSchemaItem(schemaName));
+        try {
+            // Extract schemas from various JSON structures
+            JsonNode schemas = null;
+            
+            // Handle nested result.schemas structure (e.g., Polenta MCP Server)
+            if (jsonNode.has("result") && jsonNode.get("result").has("schemas")) {
+                schemas = jsonNode.get("result").get("schemas");
             }
-        } else if (jsonNode.isArray()) {
-            for (JsonNode schema : jsonNode) {
-                String schemaName = schema.isTextual() ? schema.asText() : 
-                                   schema.has("name") ? schema.get("name").asText() : "unknown";
-                response.append(formatSchemaItem(schemaName));
+            // Handle direct schemas array
+            else if (jsonNode.has("schemas") && jsonNode.get("schemas").isArray()) {
+                schemas = jsonNode.get("schemas");
             }
-        } else {
-            // Simple JSON display
-            try {
+            // Handle direct array (legacy format)
+            else if (jsonNode.isArray()) {
+                schemas = jsonNode;
+            }
+            
+            if (schemas != null && schemas.isArray()) {
+                for (JsonNode schema : schemas) {
+                    String schemaName = schema.isTextual() ? schema.asText() : 
+                                       schema.has("name") ? schema.get("name").asText() : "unknown";
+                    response.append(formatEnhancedSchemaItem(schemaName));
+                }
+            } else {
+                // Simple JSON display
                 String prettyJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(jsonNode);
                 response.append("```json\n").append(prettyJson).append("\n```\n");
-            } catch (Exception e) {
-                response.append(jsonNode.toString());
             }
+        } catch (Exception e) {
+            response.append(jsonNode.toString());
         }
         
         response.append(formatFooter(server));
@@ -263,6 +288,13 @@ public class ResponseFormatterService {
 
     private String formatSchemaItem(String schemaName) {
         return String.format("📁 **%s**\n🏗️ Estructura: Esquema de base de datos\n📏 Tamaño: No especificado\n\n", schemaName);
+    }
+
+    private String formatEnhancedSchemaItem(String schemaName) {
+        return String.format("🗃️ **%s**\n" +
+                "   📋 Tipo: Esquema de Base de Datos\n" +
+                "   🏗️ Estructura: Disponible para consultas\n" +
+                "   📊 Contiene tablas y definiciones de datos\n\n", schemaName);
     }
 
     private String formatFileItem(JsonNode file) {

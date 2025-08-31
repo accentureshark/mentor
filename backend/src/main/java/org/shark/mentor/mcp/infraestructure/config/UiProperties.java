@@ -34,6 +34,9 @@ public class UiProperties {
         // Schema formatting messages
         private String schemasListHeader = "Schemas List";
         private String schemaItemTemplate = "name: %s %s structure: %s Size: %s";
+        private String schemaTypeDatabase = "Database Schema";
+        private String schemaStructureAvailable = "Available for querying";
+        private String schemaContainsData = "Contains tables and data definitions";
         
         // Universal format templates for different MCP server types
         private String dataQueryFormat = "data title, chart results, summary";

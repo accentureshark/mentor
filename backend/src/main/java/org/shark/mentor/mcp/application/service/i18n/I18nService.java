@@ -48,6 +48,9 @@ public class I18nService {
             case "prefix.chart" -> messages.getChartPrefix();
             case "schemas.list.header" -> messages.getDataPrefix() + " **" + messages.getSchemasListHeader() + "**";
             case "schema.item.template" -> messages.getSchemasListHeader();
+            case "schema.type.database" -> messages.getSchemaTypeDatabase();
+            case "schema.structure.available" -> messages.getSchemaStructureAvailable();
+            case "schema.contains.data" -> messages.getSchemaContainsData();
             case "format.data.query" -> messages.getDataQueryFormat();
             case "format.table.schema" -> messages.getTableSchemaFormat();
             case "format.file" -> messages.getFileFormat();

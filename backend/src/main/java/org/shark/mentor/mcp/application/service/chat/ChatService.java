@@ -287,9 +287,21 @@ public class ChatService {
         String jsonString = jsonNode.toString().toLowerCase();
         String userQuery = userMessage != null ? userMessage.toLowerCase() : "";
         
+        // Enhanced detection for nested result.schemas structure (e.g., Polenta MCP Server)
+        if (jsonNode.has("result") && jsonNode.get("result").has("schemas")) {
+            return true;
+        }
+        
+        // Check for schema-related content in JSON
+        if (jsonString.contains("schema") && jsonString.contains("information_schema")) {
+            return true;
+        }
+        
+        // Check user message for schema requests (English and Spanish)
         return (userQuery.contains("list") && userQuery.contains("schema")) ||
-               userQuery.contains("listame") && userQuery.contains("esquemas") ||
-               jsonString.contains("schema") && jsonString.contains("information_schema");
+               (userQuery.contains("listame") && userQuery.contains("esquemas")) ||
+               (userQuery.contains("show") && userQuery.contains("schema")) ||
+               (userQuery.contains("get") && userQuery.contains("schema"));
     }
 
     private String formatSchemaResponse(JsonNode jsonNode) {
@@ -298,17 +310,27 @@ public class ChatService {
         response.append("The following schemas are available:\n\n");
         
         try {
-            // Try to extract schema information from the JSON response
-            if (jsonNode.has("schemas") && jsonNode.get("schemas").isArray()) {
-                for (JsonNode schema : jsonNode.get("schemas")) {
-                    String schemaName = schema.has("name") ? schema.get("name").asText() : "unknown";
-                    response.append(formatSingleSchema(schemaName));
-                }
-            } else if (jsonNode.isArray()) {
-                for (JsonNode schema : jsonNode) {
+            // Extract schemas from various JSON structures
+            JsonNode schemas = null;
+            
+            // Handle nested result.schemas structure (e.g., Polenta MCP Server)
+            if (jsonNode.has("result") && jsonNode.get("result").has("schemas")) {
+                schemas = jsonNode.get("result").get("schemas");
+            }
+            // Handle direct schemas array
+            else if (jsonNode.has("schemas") && jsonNode.get("schemas").isArray()) {
+                schemas = jsonNode.get("schemas");
+            }
+            // Handle direct array (legacy format)
+            else if (jsonNode.isArray()) {
+                schemas = jsonNode;
+            }
+            
+            if (schemas != null && schemas.isArray()) {
+                for (JsonNode schema : schemas) {
                     String schemaName = schema.isTextual() ? schema.asText() : 
                                        schema.has("name") ? schema.get("name").asText() : "unknown";
-                    response.append(formatSingleSchema(schemaName));
+                    response.append(formatEnhancedSchemaItem(schemaName));
                 }
             } else {
                 // Fallback to generic structured response
@@ -327,6 +349,17 @@ public class ChatService {
                 i18nService.getMessage("prefix.file"),
                 schemaName,
                 i18nService.getMessage("prefix.structure"));
+    }
+
+    private String formatEnhancedSchemaItem(String schemaName) {
+        return String.format("🗃️ **%s**\n" +
+                "   📋 Type: %s\n" +
+                "   🏗️ Structure: %s\n" +
+                "   📊 %s\n\n", 
+                schemaName,
+                i18nService.getMessage("schema.type.database"),
+                i18nService.getMessage("schema.structure.available"),
+                i18nService.getMessage("schema.contains.data"));
     }
 
 
@@ -416,11 +449,9 @@ public class ChatService {
         String[] lines = mcpContext.split("\n");
         for (String line : lines) {
             line = line.trim();
-            if (!line.isEmpty() && !line.toLowerCase().contains("available") && !line.toLowerCase().contains("schemas")) {
-                // This looks like a schema name
-                if (line.matches("^[a-zA-Z0-9_]+$")) {
-                    response.append(formatSingleSchema(line));
-                }
+            if (!line.isEmpty() && !line.toLowerCase().contains("available") && 
+                !line.toLowerCase().contains("schemas") && line.matches("^[a-zA-Z0-9_]+$")) {
+                response.append(formatEnhancedSchemaItem(line));
             }
         }
         
