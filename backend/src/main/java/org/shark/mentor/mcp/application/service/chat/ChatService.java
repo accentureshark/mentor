@@ -403,8 +403,23 @@ public class ChatService {
 
     private boolean isSchemaListResponse(String mcpContext) {
         String lowerContext = mcpContext.toLowerCase();
-        return lowerContext.contains("information_schema") && 
-               (lowerContext.contains("sf1") || lowerContext.contains("sf100") || lowerContext.contains("tiny"));
+        // MCP compliant detection: look for schema-related keywords and patterns
+        // Check for common schema indicators without hardcoding specific schema names
+        boolean hasSchemaKeywords = lowerContext.contains("schema") || lowerContext.contains("information_schema");
+        
+        // Check if it looks like a list of schema names (multiple lines with alphanumeric names)
+        String[] lines = mcpContext.split("\n");
+        int schemaLikeLines = 0;
+        for (String line : lines) {
+            line = line.trim();
+            if (!line.isEmpty() && line.matches("^[a-zA-Z0-9_]+$") && 
+                !line.toLowerCase().contains("available") && !line.toLowerCase().contains("schema")) {
+                schemaLikeLines++;
+            }
+        }
+        
+        // Consider it a schema list if it has schema keywords and multiple schema-like entries
+        return hasSchemaKeywords && schemaLikeLines >= 2;
     }
 
     private String formatRawSchemaResponse(String mcpContext) {
